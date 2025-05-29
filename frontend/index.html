@@ -1,0 +1,23 @@
+<!-- # ===== frontend/index.html ===== -->
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>COMTRADE Viewer</title>
+  <link rel="stylesheet" href="style.css">
+  <!-- <script src="https://cdn.plot.ly/plotly-latest.min.js"></script> -->
+  <script src="plotly-latest.min.js"></script>
+  <!-- <script src="plotly.js"></script> -->
+</head>
+<body>
+  <h1>上传 COMTRADE 文件</h1>
+  <input type="file" id="cfgFile" accept=".cfg">
+  <input type="file" id="datFile" accept=".dat">
+  <button onclick="uploadFiles()">上传</button>
+
+  <div id="metadata"></div>
+  <div id="plots"></div>
+
+  <script src="main.js"></script>
+</body>
+</html>
