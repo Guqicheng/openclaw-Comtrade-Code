@@ -10,14 +10,36 @@
   <!-- <script src="plotly.js"></script> -->
 </head>
 <body>
-  <h1>上传 COMTRADE 文件</h1>
-  <input type="file" id="cfgFile" accept=".cfg">
-  <input type="file" id="datFile" accept=".dat">
-  <button onclick="uploadFiles()">上传</button>
+  <div class="container">
+    <h1>COMTRADE 文件</h1>
 
-  <div id="metadata"></div>
-  <div id="plots"></div>
+    <div class="row">
+      <div class="col upload-section">
+        <div class="input-group">
+          <label for="cfgFile">选择 .cfg 文件：</label>
+          <input type="file" id="cfgFile" accept=".cfg">
+        </div>
+
+        <div class="input-group">
+          <label for="datFile">选择 .dat 文件：</label>
+          <input type="file" id="datFile" accept=".dat">
+        </div>
+
+        <button onclick="uploadFiles()">上传</button>
+      </div>
+
+      <div id="metadata" class="col metadata-section" style="margin-top: 30px;">
+        <h2>元信息</h2>
+        <ul id="metadataList" style="list-style: none; padding-left: 0;"></ul>
+      </div>
+    </div>
+
+    
+
+    <div id="plots" style="margin-top: 50px;"></div>
+  </div>
 
   <script src="main.js"></script>
 </body>
+
 </html>

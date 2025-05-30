@@ -70,7 +70,7 @@ function plotWaveforms(waveform) {
         };
 
         const layout = {
-            height: 150,  // ✅ 控制单个波形高度
+            height: 200,  // ✅ 控制单个波形高度
             margin: {
                 l: 100,  // ✅ 左边间距，给 y 轴标题留空间
                 r: 20,
