@@ -55,11 +55,14 @@ function plotWaveforms(waveform) {
     const container = document.getElementById("plots");
     container.innerHTML = "";
     const time = waveform.time;
+    let isSyncing = false;
 
+    const allDivs = [];  // 收集所有子图 div
     Object.entries(waveform.analog).forEach(([channelName, values]) => {
         const div = document.createElement("div");
         div.style.marginBottom = "6px";  // ✅ 控制波形之间的间距
         container.appendChild(div);
+        allDivs.push(div);
 
         const trace = {
             x: time,
@@ -73,9 +76,7 @@ function plotWaveforms(waveform) {
             height: 200,  // ✅ 控制单个波形高度
             margin: {
                 l: 100,  // ✅ 左边间距，给 y 轴标题留空间
-                r: 20,
-                t: 20,
-                b: 30
+                r: 20,t: 20,b: 30
             },
             yaxis: {
                 title: {
@@ -89,6 +90,42 @@ function plotWaveforms(waveform) {
             showlegend: false  // ✅ 不要图例
         };
 
-        Plotly.newPlot(div, [trace],layout, { responsive: true } );
+        Plotly.newPlot(div, [trace],layout, { responsive: true,displayModeBar: false} );
+
+         // 为第一个图添加事件监听
+        if (allDivs.length === 1) {
+            div.on('plotly_relayout', (eventData) => {
+            if (eventData['xaxis.range[0]'] && eventData['xaxis.range[1]']) {
+                const update = {
+                'xaxis.range': [
+                    eventData['xaxis.range[0]'],
+                    eventData['xaxis.range[1]']
+                ]
+                };
+                isSyncing = true;
+                allDivs.forEach((d) => {
+                    if (d !== div) {
+                    Plotly.relayout(d, update);
+                    }
+                });
+                isSyncing = false;
+
+                // 应用到其他所有图
+                for (let i = 1; i < allDivs.length; i++) {
+                Plotly.relayout(allDivs[i], update);
+                }
+            }
+            });
+        }
+
     });
+}
+
+function resetZoom() {
+  const plots = document.getElementById("plots").children;
+  for (let i = 0; i < plots.length; i++) {
+    Plotly.relayout(plots[i], {
+      'xaxis.autorange': true
+    });
+  }
 }
