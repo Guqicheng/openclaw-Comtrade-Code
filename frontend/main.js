@@ -1,4 +1,9 @@
 // # ===== frontend/main.js =====    这个js文件主要控制输出波形图
+
+let originalXRange = null;
+const allDivs = [];  // 收集所有子图 div
+let isSyncing = false;
+
 async function uploadFiles() {
     const cfg = document.getElementById('cfgFile').files[0];
     const dat = document.getElementById('datFile').files[0];
@@ -51,13 +56,15 @@ function displayMetadata(meta) {
         <p>总采样点数: ${meta.total_samples}</p>`;
 }
 
+
 function plotWaveforms(waveform) {
     const container = document.getElementById("plots");
     container.innerHTML = "";
     const time = waveform.time;
-    let isSyncing = false;
+    
+    
 
-    const allDivs = [];  // 收集所有子图 div
+    
     Object.entries(waveform.analog).forEach(([channelName, values]) => {
         const div = document.createElement("div");
         div.style.marginBottom = "6px";  // ✅ 控制波形之间的间距
@@ -85,47 +92,61 @@ function plotWaveforms(waveform) {
                 }
             },
             xaxis: {
-                title: "时间（秒）"
+                title: "时间（秒）",
+                range: originalXRange  // ✅ 设置初始范围
             },
             showlegend: false  // ✅ 不要图例
         };
 
-        Plotly.newPlot(div, [trace],layout, { responsive: true,displayModeBar: false} );
+        // Plotly.newPlot(div, [trace], layout, { responsive: true, displayModeBar: false }).then(() => {
+        //     // 只记录第一个图的初始范围
+        //     if (originalXRange === null && time.length > 1) {
+        //         originalXRange = [time[0], time[time.length - 1]];
+        //     }
+        // });
+        Plotly.newPlot(div, [trace], layout, {
+            responsive: true,
+            displayModeBar: false
+        });
+
+
 
          // 为第一个图添加事件监听
-        if (allDivs.length === 1) {
-            div.on('plotly_relayout', (eventData) => {
-            if (eventData['xaxis.range[0]'] && eventData['xaxis.range[1]']) {
-                const update = {
-                'xaxis.range': [
-                    eventData['xaxis.range[0]'],
-                    eventData['xaxis.range[1]']
-                ]
-                };
+        // ✅ 给每一个图都绑定 relayout 事件监听
+        div.on('plotly_relayout', (eventData) => {
+            if (isSyncing) return;
+
+            const range0 = eventData['xaxis.range[0]'];
+            const range1 = eventData['xaxis.range[1]'];
+
+            if (range0 !== undefined && range1 !== undefined) {
+                const update = { 'xaxis.range': [range0, range1] };
                 isSyncing = true;
                 allDivs.forEach((d) => {
                     if (d !== div) {
-                    Plotly.relayout(d, update);
+                        Plotly.relayout(d, update);
                     }
                 });
                 isSyncing = false;
 
-                // 应用到其他所有图
-                for (let i = 1; i < allDivs.length; i++) {
-                Plotly.relayout(allDivs[i], update);
-                }
+                // ✅ 更新原始范围（用于 resetZoom）
+                originalXRange = [range0, range1];
             }
-            });
-        }
+        });
+
 
     });
 }
 
 function resetZoom() {
+  if (!originalXRange) return;
+
+  const update = {
+    'xaxis.range': originalXRange
+  };
+
   const plots = document.getElementById("plots").children;
   for (let i = 0; i < plots.length; i++) {
-    Plotly.relayout(plots[i], {
-      'xaxis.autorange': true
-    });
+    Plotly.relayout(plots[i], update);
   }
 }
