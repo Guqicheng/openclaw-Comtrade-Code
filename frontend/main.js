@@ -60,10 +60,18 @@ function displayMetadata(meta) {
 function plotWaveforms(waveform) {
     const container = document.getElementById("plots");
     container.innerHTML = "";
-    const time = waveform.time;
-    
-    
+    allDivs.length = 0;  // 清空之前的 divs
 
+    const time = waveform.time;
+    // ✅ 初始化时保存全局初始范围
+    if (!originalXRange) {
+        originalXRange = [Math.min(...time), Math.max(...time)];
+    }
+
+    // 添加初始化打印originalXRange--测试
+    console.log("初始化 originalXRange =", originalXRange);
+
+    
     
     Object.entries(waveform.analog).forEach(([channelName, values]) => {
         const div = document.createElement("div");
@@ -93,17 +101,11 @@ function plotWaveforms(waveform) {
             },
             xaxis: {
                 title: "时间（秒）",
-                range: originalXRange  // ✅ 设置初始范围
+                range: originalXRange.slice()  // 使用拷贝值，避免被修改
             },
             showlegend: false  // ✅ 不要图例
         };
 
-        // Plotly.newPlot(div, [trace], layout, { responsive: true, displayModeBar: false }).then(() => {
-        //     // 只记录第一个图的初始范围
-        //     if (originalXRange === null && time.length > 1) {
-        //         originalXRange = [time[0], time[time.length - 1]];
-        //     }
-        // });
         Plotly.newPlot(div, [trace], layout, {
             responsive: true,
             displayModeBar: false
@@ -114,23 +116,26 @@ function plotWaveforms(waveform) {
          // 为第一个图添加事件监听
         // ✅ 给每一个图都绑定 relayout 事件监听
         div.on('plotly_relayout', (eventData) => {
+            // 添加测试
+            console.log("触发 relayout，eventData =", eventData);
+
             if (isSyncing) return;
 
-            const range0 = eventData['xaxis.range[0]'];
-            const range1 = eventData['xaxis.range[1]'];
 
-            if (range0 !== undefined && range1 !== undefined) {
+            if ('xaxis.range[0]' in eventData && 'xaxis.range[1]' in eventData) {
+                const range0 = eventData['xaxis.range[0]'];
+                const range1 = eventData['xaxis.range[1]'];
+
                 const update = { 'xaxis.range': [range0, range1] };
+
                 isSyncing = true;
                 allDivs.forEach((d) => {
                     if (d !== div) {
                         Plotly.relayout(d, update);
                     }
                 });
-                isSyncing = false;
+                isSyncing = false;                                                                                                                                                                                                                                                                                                                                                  
 
-                // ✅ 更新原始范围（用于 resetZoom）
-                originalXRange = [range0, range1];
             }
         });
 
@@ -138,15 +143,16 @@ function plotWaveforms(waveform) {
     });
 }
 
+// 新的代码逻辑
 function resetZoom() {
-  if (!originalXRange) return;
-
-  const update = {
-    'xaxis.range': originalXRange
-  };
-
-  const plots = document.getElementById("plots").children;
-  for (let i = 0; i < plots.length; i++) {
-    Plotly.relayout(plots[i], update);
-  }
+  if (!allDivs.length) return;
+  isSyncing = true;
+  allDivs.forEach((div) => {
+    Plotly.relayout(div, {
+      'xaxis.autorange': true,   // 让 Plotly 走和双击完全一样的逻辑
+      'yaxis.autorange': true
+    });
+  });
+  isSyncing = false;
 }
+

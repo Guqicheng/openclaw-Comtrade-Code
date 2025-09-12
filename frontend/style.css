@@ -99,3 +99,6 @@ button:hover {
   background-color: #0056b3;
 }
 
+#resetButton {
+  display: none; /* 初始隐藏 */
+}
