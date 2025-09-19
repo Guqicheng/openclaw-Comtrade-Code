@@ -2,7 +2,7 @@
 
 let originalXRange = null;
 const allDivs = [];  // 收集所有子图 div
-let isSyncing = false;
+let isSyncing = false; // ✅ 全局唯一声明
 
 async function uploadFiles() {
     const cfg = document.getElementById('cfgFile').files[0];
@@ -56,26 +56,22 @@ function displayMetadata(meta) {
         <p>总采样点数: ${meta.total_samples}</p>`;
 }
 
-
 function plotWaveforms(waveform) {
     const container = document.getElementById("plots");
     container.innerHTML = "";
     allDivs.length = 0;  // 清空之前的 divs
 
     const time = waveform.time;
+
     // ✅ 初始化时保存全局初始范围
     if (!originalXRange) {
         originalXRange = [Math.min(...time), Math.max(...time)];
     }
-
-    // 添加初始化打印originalXRange--测试
     console.log("初始化 originalXRange =", originalXRange);
 
-    
-    
     Object.entries(waveform.analog).forEach(([channelName, values]) => {
         const div = document.createElement("div");
-        div.style.marginBottom = "6px";  // ✅ 控制波形之间的间距
+        div.style.marginBottom = "6px";
         container.appendChild(div);
         allDivs.push(div);
 
@@ -88,22 +84,16 @@ function plotWaveforms(waveform) {
         };
 
         const layout = {
-            height: 200,  // ✅ 控制单个波形高度
-            margin: {
-                l: 100,  // ✅ 左边间距，给 y 轴标题留空间
-                r: 20,t: 20,b: 30
-            },
+            height: 200,
+            margin: { l: 100, r: 20, t: 20, b: 30 },
             yaxis: {
-                title: {
-                    text: channelName,  // ✅ 把通道名放在左边 y 轴
-                    standoff: 10
-                }
+                title: { text: channelName, standoff: 10 }
             },
             xaxis: {
                 title: "时间（秒）",
-                range: originalXRange.slice()  // 使用拷贝值，避免被修改
+                range: originalXRange.slice()  // 拷贝值
             },
-            showlegend: false  // ✅ 不要图例
+            showlegend: false
         };
 
         Plotly.newPlot(div, [trace], layout, {
@@ -111,16 +101,11 @@ function plotWaveforms(waveform) {
             displayModeBar: false
         });
 
-
-
-         // 为第一个图添加事件监听
-        // ✅ 给每一个图都绑定 relayout 事件监听
+        // ✅ 每个图绑定 relayout 事件监听
         div.on('plotly_relayout', (eventData) => {
-            // 添加测试
             console.log("触发 relayout，eventData =", eventData);
 
             if (isSyncing) return;
-
 
             if ('xaxis.range[0]' in eventData && 'xaxis.range[1]' in eventData) {
                 const range0 = eventData['xaxis.range[0]'];
@@ -134,25 +119,21 @@ function plotWaveforms(waveform) {
                         Plotly.relayout(d, update);
                     }
                 });
-                isSyncing = false;                                                                                                                                                                                                                                                                                                                                                  
-
+                isSyncing = false;
             }
         });
-
-
     });
 }
 
-// 新的代码逻辑
+// ✅ 重置缩放：让 Plotly 走和双击一样的逻辑
 function resetZoom() {
-  if (!allDivs.length) return;
-  isSyncing = true;
-  allDivs.forEach((div) => {
-    Plotly.relayout(div, {
-      'xaxis.autorange': true,   // 让 Plotly 走和双击完全一样的逻辑
-      'yaxis.autorange': true
+    if (!allDivs.length) return;
+    isSyncing = true;
+    allDivs.forEach((div) => {
+        Plotly.relayout(div, {
+            'xaxis.autorange': true,
+            'yaxis.autorange': true
+        });
     });
-  });
-  isSyncing = false;
+    isSyncing = false;
 }
-
