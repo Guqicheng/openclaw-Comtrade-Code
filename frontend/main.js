@@ -75,6 +75,15 @@ function plotWaveforms(waveform) {
         container.appendChild(div);
         allDivs.push(div);
 
+            // ✅ 根据字数调整字体大小
+        const maxFontSize = 16;
+        const minFontSize = 8;
+        const baseLength = 10;
+        const dynamicFontSize = Math.max(
+            minFontSize,
+            Math.min(maxFontSize, (baseLength / channelName.length) * maxFontSize)
+        );
+
         const trace = {
             x: time,
             y: values,
@@ -87,7 +96,11 @@ function plotWaveforms(waveform) {
             height: 200,
             margin: { l: 100, r: 20, t: 20, b: 30 },
             yaxis: {
-                title: { text: channelName, standoff: 10 }
+                title: { 
+                    text: channelName, 
+                    standoff: 10,
+                    font: { size: dynamicFontSize }
+                }
             },
             xaxis: {
                 title: "时间（秒）",
