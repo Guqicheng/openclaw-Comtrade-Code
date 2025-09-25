@@ -4,6 +4,9 @@ let originalXRange = null;
 const allDivs = [];  // 收集所有子图 div
 let isSyncing = false; // ✅ 全局唯一声明
 
+let currentWaveform = null;   // 保存当前数据
+let selectedChannels = [];    // 保存选中通道
+
 async function uploadFiles() {
     const cfg = document.getElementById('cfgFile').files[0];
     const dat = document.getElementById('datFile').files[0];
@@ -57,25 +60,59 @@ function displayMetadata(meta) {
 }
 
 function plotWaveforms(waveform) {
+    currentWaveform = waveform; // ✅ 保存全局数据
+
+    // 初始化选择通道（默认全选）
+    selectedChannels = Object.keys(waveform.analog);
+
+    // 渲染选择器
+    const channelList = document.getElementById("channelList");
+    channelList.innerHTML = "";
+    selectedChannels.forEach(channelName => {
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.value = channelName;
+        checkbox.checked = true;
+        checkbox.onchange = (e) => {
+            if (e.target.checked) {
+                if (!selectedChannels.includes(channelName)) {
+                    selectedChannels.push(channelName);
+                }
+            } else {
+                selectedChannels = selectedChannels.filter(c => c !== channelName);
+            }
+        };
+
+        const label = document.createElement("label");
+        label.style.display = "block";
+        label.textContent = channelName;
+        label.prepend(checkbox);
+        channelList.appendChild(label);
+    });
+
+    renderPlots();
+}
+
+function renderPlots() {
     const container = document.getElementById("plots");
     container.innerHTML = "";
-    allDivs.length = 0;  // 清空之前的 divs
+    allDivs.length = 0;
 
-    const time = waveform.time;
+    if (!currentWaveform) return;
 
-    // ✅ 初始化时保存全局初始范围
+    const time = currentWaveform.time;
     if (!originalXRange) {
         originalXRange = [Math.min(...time), Math.max(...time)];
     }
-    console.log("初始化 originalXRange =", originalXRange);
 
-    Object.entries(waveform.analog).forEach(([channelName, values]) => {
+    selectedChannels.forEach(channelName => {
+        const values = currentWaveform.analog[channelName];
         const div = document.createElement("div");
         div.style.marginBottom = "6px";
         container.appendChild(div);
         allDivs.push(div);
 
-            // ✅ 根据字数调整字体大小
+        // ✅ 根据字数调整字体大小
         const maxFontSize = 16;
         const minFontSize = 8;
         const baseLength = 10;
@@ -104,7 +141,7 @@ function plotWaveforms(waveform) {
             },
             xaxis: {
                 title: "时间（秒）",
-                range: originalXRange.slice()  // 拷贝值
+                range: originalXRange.slice()
             },
             showlegend: false
         };
@@ -114,10 +151,8 @@ function plotWaveforms(waveform) {
             displayModeBar: false
         });
 
-        // ✅ 每个图绑定 relayout 事件监听
+        // 绑定联动缩放
         div.on('plotly_relayout', (eventData) => {
-            console.log("触发 relayout，eventData =", eventData);
-
             if (isSyncing) return;
 
             if ('xaxis.range[0]' in eventData && 'xaxis.range[1]' in eventData) {
@@ -136,6 +171,18 @@ function plotWaveforms(waveform) {
             }
         });
     });
+}
+
+// ✅ 全选/全不选功能
+function selectAllChannels(selectAll) {
+    const checkboxes = document.querySelectorAll("#channelList input[type=checkbox]");
+    checkboxes.forEach(cb => cb.checked = selectAll);
+    selectedChannels = selectAll ? Object.keys(currentWaveform.analog) : [];
+}
+
+// ✅ 应用选择
+function applySelection() {
+    renderPlots();
 }
 
 // ✅ 重置缩放：让 Plotly 走和双击一样的逻辑
