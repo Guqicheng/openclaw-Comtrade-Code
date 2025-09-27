@@ -1,60 +1,75 @@
-<!-- # ===== frontend/index.html ===== -->
 <!DOCTYPE html>
-<html>
+<html lang="zh">
 <head>
-  <meta charset="utf-8">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>COMTRADE Viewer</title>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
   <link rel="stylesheet" href="style.css">
-  <!-- <script src="https://cdn.plot.ly/plotly-latest.min.js"></script> -->
-  <script src="plotly-latest.min.js"></script>
-  <!-- <script src="plotly.js"></script> -->
 </head>
 <body>
-  <div class="container">
-    <h1>COMTRADE 文件</h1>
 
-    <div class="row">
-      <div class="col upload-section">
-        <div class="input-group">
-          <label for="cfgFile">选择 .cfg 文件：</label>
-          <input type="file" id="cfgFile" accept=".cfg">
-        </div>
+<div id="app">
 
-        <div class="input-group">
-          <label for="datFile">选择 .dat 文件：</label>
-          <input type="file" id="datFile" accept=".dat">
-        </div>
+  <!-- 左侧边栏 -->
+  <div id="sidebar">
+    <!-- 上传区域 -->
+    <div class="panel">
+      <h3>上传文件</h3>
+      <input type="file" id="cfgFile" accept=".cfg"><br>
+      <input type="file" id="datFile" accept=".dat"><br>
+      <button onclick="uploadFiles()">上传</button>
+    </div>
 
-        <button onclick="uploadFiles()">上传</button>
-      </div>
-
-      <div id="metadata" class="col metadata-section" style="margin-top: 30px;">
-        <h2>元信息</h2>
-        <ul id="metadataList" style="list-style: none; padding-left: 0;"></ul>
+    <!-- 元信息（可折叠+滚动条） -->
+    <div class="panel collapsible">
+      <h3 onclick="togglePanel(this)">元信息 ▼</h3>
+      <div class="panel-content scrollable" id="metadata">
+        <!-- 元信息内容由JS填充 -->
       </div>
     </div>
 
-    <!-- 暂时放置在这里  -->
-    <div id="channelSelector">
-      <h3>选择通道</h3>
-      <button onclick="selectAllChannels(true)">全选</button>
-      <button onclick="selectAllChannels(false)">全不选</button>
-      <div id="channelList"></div>
-      <button onclick="applySelection()">应用选择</button>
+    <!-- 通道选择 -->
+    <div class="panel collapsible">
+      <h3 onclick="togglePanel(this)">通道选择 ▼</h3>
+      <div class="panel-content">
+        <div class="channel-top">
+          <input type="text" id="channelSearch" placeholder="搜索通道...">
+          <div class="channel-buttons">
+            <button onclick="selectAllChannels(true)">全选</button>
+            <button onclick="selectAllChannels(false)">全不选</button>
+            <button onclick="applySelectedChannels()">应用选择</button>
+          </div>
+        </div>
+        <div id="channelList">
+          <!-- 动态生成复选框 -->
+        </div>
+      </div>
     </div>
+  </div>
 
-
-    
-
-    <div id="plots" style="margin-top: 50px;"></div>
-    
+  <!-- 主体内容区 -->
+  <div id="main">
+    <!-- 悬浮控制面板 -->
     <div id="controlPanel">
       <button onclick="resetZoom()">重置缩放</button>
     </div>
 
+    <!-- 波形图容器 -->
+    <div id="plots"></div>
   </div>
+</div>
 
-  <script src="main.js"></script>
+<script src="main.js"></script>
+<script src="channelControls.js"></script>
+
+<script>
+  // 折叠/展开逻辑
+  function togglePanel(header) {
+    const panel = header.parentElement;
+    panel.classList.toggle("collapsed");
+  }
+</script>
+
 </body>
-
 </html>

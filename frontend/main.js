@@ -33,11 +33,14 @@ async function uploadFiles() {
 
     displayMetadata(data.metadata);
     plotWaveforms(data.waveform);
+
+    // ✅ 新增：初始化通道选择
+    populateChannelList(data.waveform);
 }
 
 function displayMetadata(meta) {
     const el = document.getElementById("metadata");
-    el.innerHTML = `<h3>元信息</h3>
+    el.innerHTML = `
         <p>变电站名称: ${meta.stationName}</p>
         <p>设备ID: ${meta.recDevId}</p>
         <p>版本: ${meta.revYear}</p>
@@ -59,39 +62,49 @@ function displayMetadata(meta) {
         <p>总采样点数: ${meta.total_samples}</p>`;
 }
 
-function plotWaveforms(waveform) {
-    currentWaveform = waveform; // ✅ 保存全局数据
+function plotWaveforms(waveform, channelsToShow = null) {
+    // 保存全局数据
+    window.currentWaveform = waveform;
 
-    // 初始化选择通道（默认全选）
-    selectedChannels = Object.keys(waveform.analog);
+    // 初始化选择通道（默认全选，除非传入 channelsToShow）
+    if (channelsToShow && channelsToShow.length > 0) {
+        window.selectedChannels = channelsToShow;
+    } else {
+        window.selectedChannels = Object.keys(waveform.analog);
+    }
 
     // 渲染选择器
     const channelList = document.getElementById("channelList");
-    channelList.innerHTML = "";
-    selectedChannels.forEach(channelName => {
-        const checkbox = document.createElement("input");
-        checkbox.type = "checkbox";
-        checkbox.value = channelName;
-        checkbox.checked = true;
-        checkbox.onchange = (e) => {
-            if (e.target.checked) {
-                if (!selectedChannels.includes(channelName)) {
-                    selectedChannels.push(channelName);
+    if (channelList) {
+        channelList.innerHTML = "";
+        Object.keys(waveform.analog).forEach(channelName => {
+            const checkbox = document.createElement("input");
+            checkbox.type = "checkbox";
+            checkbox.value = channelName;
+            checkbox.checked = window.selectedChannels.includes(channelName);
+
+            checkbox.onchange = (e) => {
+                if (e.target.checked) {
+                    if (!window.selectedChannels.includes(channelName)) {
+                        window.selectedChannels.push(channelName);
+                    }
+                } else {
+                    window.selectedChannels = window.selectedChannels.filter(c => c !== channelName);
                 }
-            } else {
-                selectedChannels = selectedChannels.filter(c => c !== channelName);
-            }
-        };
+            };
 
-        const label = document.createElement("label");
-        label.style.display = "block";
-        label.textContent = channelName;
-        label.prepend(checkbox);
-        channelList.appendChild(label);
-    });
+            const label = document.createElement("label");
+            label.style.display = "block";
+            label.textContent = channelName;
+            label.prepend(checkbox);
+            channelList.appendChild(label);
+        });
+    }
 
+    // 渲染波形
     renderPlots();
 }
+
 
 function renderPlots() {
     const container = document.getElementById("plots");

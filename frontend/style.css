@@ -1,104 +1,104 @@
 /* # ===== frontend/style.css ===== */
-body {
-  font-family: "Microsoft YaHei", sans-serif;
-  background-color: #f7f9fc;
+body, html {
   margin: 0;
-  padding: 20px;
+  padding: 0;
+  height: 100%;
+  font-family: sans-serif;
+  overflow: hidden;
 }
 
-.container {
-  width: 100%;
-  max-width: 1400px;       /* ✅ PC端支持更宽展示 */
-  margin: 0 auto;
-  padding: 20px;
-  background: #fff;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-  border-radius: 6px;
-}
-
-
-h1, h2 {
-  color: #333;
-  border-bottom: 1px solid #ccc;
-  padding-bottom: 8px;
-}
-
-.upload-section {
-  margin-bottom: 20px;
-}
-
-.input-group {
-  margin-bottom: 10px;
-}
-
-.input-group label {
-  display: inline-block;
-  width: 150px;
-  font-weight: bold;
-}
-
-button {
-  padding: 8px 28px;
-  font-size: 16px;
-  background-color: #007bff;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-button:hover {
-  background-color: #0056b3;
-}
-
-.metadata-section ul li {
-  padding: 4px 0;
-}
-
-
-.row {
+#app {
   display: flex;
-  flex-wrap: wrap;
-  gap: 20px;
+  height: 100vh; /* 高度自适应屏幕 */
 }
 
-.col {
+#sidebar {
+  width: 300px;
+  min-width: 250px;
+  background-color: #f7f7f7;
+  border-right: 1px solid #ddd;
+  overflow-y: auto;
+  transition: width 0.3s ease;
+}
+
+#main {
   flex: 1;
-  min-width: 300px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
 }
 
-.plot-container {
-  max-width: 100%;
-  overflow-x: auto;
+#plots {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
 }
 
-
-/* 添加悬浮样式 */
-
+/* 悬浮控制面板 */
 #controlPanel {
   position: fixed;
   top: 20px;
   right: 30px;
-  z-index: 999;
+  z-index: 1000;
   background-color: rgba(255,255,255,0.9);
   padding: 10px;
   border-radius: 8px;
-  box-shadow: 0 0 6px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 0 6px rgba(0,0,0,0.2);
 }
 
-#controlPanel button {
-  padding: 6px 12px;
-  background-color: #007bff;
-  color: white;
-  border: none;
-  border-radius: 4px;
+/* 面板样式 */
+.panel {
+  border-bottom: 1px solid #ddd;
+  padding: 10px;
+}
+
+.panel h3 {
+  margin: 0;
   cursor: pointer;
 }
 
-#controlPanel button:hover {
-  background-color: #0056b3;
+.panel.collapsible.collapsed .panel-content {
+  display: none;
 }
 
-#resetButton {
-  display: none; /* 初始隐藏 */
+.panel-content {
+  margin-top: 8px;
 }
+
+.scrollable {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+/* 通道按钮 */
+.channel-buttons {
+  margin: 6px 0;
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+#channelSearch {
+  width: 90%;
+  padding: 4px;
+  margin-bottom: 6px;
+}
+
+
+/* 通道选择面板固定顶部 */
+.channel-top {
+  position: sticky;
+  top: 0;
+  background: #f7f7f7;
+  z-index: 10;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #ddd;
+}
+
+/* 通道复选框列表滚动 */
+#channelList {
+  max-height: 350px; /* 👈 你可以改这个数值调整高度 */
+  overflow-y: auto;
+}
+
