@@ -1,13 +1,9 @@
-// # ===== channelControls.js =====
-// 专门处理通道选择、搜索、全选/全不选/应用选择
-
-window.currentWaveform;
-   // 保存当前完整波形数据
-window.selectedChannels    // 保存用户选择的通道
+// # ===== frontend/channelControls.js =====
+// 控制通道选择、搜索、全选/全不选/应用选择
 
 // 初始化通道列表
 function populateChannelList(waveform) {
-    currentWaveform = waveform;
+    // currentWaveform = waveform;
     const channelList = document.getElementById("channelList");
     channelList.innerHTML = "";
 
@@ -25,6 +21,10 @@ function populateChannelList(waveform) {
         label.appendChild(document.createTextNode(" " + channelName));
         channelList.appendChild(label);
     });
+
+    // ✅ 默认全选
+    selectedChannels = Object.keys(waveform.analog);
+    setupChannelSearch(); // 初始化搜索
 }
 
 // 搜索功能
@@ -41,46 +41,24 @@ function setupChannelSearch() {
     });
 }
 
-
-// 全选 / 全不选
+// ✅ 全选 / 全不选
 function selectAllChannels(select = true) {
     document.querySelectorAll("#channelList input[type=checkbox]").forEach(cb => {
         cb.checked = select;
     });
+    selectedChannels = select ? Object.keys(currentWaveform.analog) : [];
 }
 
-// 应用选择
+// ✅ 应用选择
 function applySelectedChannels() {
-    window.selectedChannels = Array.from(
+    if (!currentWaveform) return;
+    // 更新选中的通道
+    selectedChannels = Array.from(
         document.querySelectorAll("#channelList input[type=checkbox]:checked")
     ).map(cb => cb.value);
 
-    if (!window.currentWaveform) return;
-
-    // 保留原始结构，只筛选 analog 部分
-    const filtered = {
-        ...window.currentWaveform,  // 复制原始数据（包括 time 等）
-        analog: {}
-    };
-
-    window.selectedChannels.forEach(ch => {
-        if (window.currentWaveform.analog[ch]) {
-            filtered.analog[ch] = window.currentWaveform.analog[ch];
-        }
-    });
-
-    // 调用 main.js 的绘图函数
-    if (typeof window.plotWaveforms === "function") {
-        window.plotWaveforms(filtered, window.selectedChannels);
-    } else {
-        console.error("plotWaveforms 未定义，请确认 main.js 已正确加载");
-    }
+    renderPlots();
 }
 
 // 页面初始化时调用
 document.addEventListener("DOMContentLoaded", setupChannelSearch);
-
-// 挂到 window，避免重复声明报错
-window.selectAllChannels = selectAllChannels;
-window.applySelectedChannels = applySelectedChannels;
-window.setupChannelSearch = setupChannelSearch;
