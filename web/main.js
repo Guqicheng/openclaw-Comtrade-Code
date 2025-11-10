@@ -161,3 +161,9 @@ function resetZoom() {
     });
     isSyncing = false;
 }
+
+// ========== 移动端侧边栏开关 ==========
+function toggleSidebar() {
+  const sidebar = document.getElementById("sidebar");
+  sidebar.classList.toggle("active");
+}
