@@ -167,3 +167,42 @@ function toggleSidebar() {
   const sidebar = document.getElementById("sidebar");
   sidebar.classList.toggle("active");
 }
+
+
+// 折叠逻辑
+document.addEventListener("DOMContentLoaded", () => {
+  const sidebar = document.getElementById("sidebar");
+  const toggleBtn = document.getElementById("toggleSidebar");
+  const overlay = document.getElementById("sidebarOverlay");
+
+  // 在横屏模式下才生效
+  function isLandscapeMobile() {
+    return window.matchMedia("(max-width: 900px) and (orientation: landscape)").matches;
+  }
+
+  function toggleSidebar(forceClose = false) {
+    if (!isLandscapeMobile()) return; // 只在横屏手机上生效
+
+    if (forceClose) {
+      sidebar.classList.remove("open");
+      overlay.style.display = "none";
+      document.body.style.overflow = "";
+      return;
+    }
+
+    const isOpen = sidebar.classList.toggle("open");
+    overlay.style.display = isOpen ? "block" : "none";
+    document.body.style.overflow = isOpen ? "hidden" : "";
+  }
+
+  if (toggleBtn && sidebar && overlay) {
+    toggleBtn.addEventListener("click", () => toggleSidebar());
+    overlay.addEventListener("click", () => toggleSidebar(true));
+  }
+
+  // 当横竖屏切换时自动关闭侧栏
+  window.addEventListener("orientationchange", () => {
+    setTimeout(() => toggleSidebar(true), 200);
+  });
+});
+

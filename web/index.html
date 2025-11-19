@@ -9,10 +9,11 @@
 </head>
 <body>
 
+<button id="toggleSidebar">☰</button>
 <div id="app">
 
   <!-- 移动端顶部栏 -->
-  <div id="mobileHeader">
+  <div id="mobileHeader" style="display: none;">
     <button id="menuToggle" onclick="toggleSidebar()">☰ 菜单</button>
     <h2>COMTRADE Viewer</h2>
   </div>
@@ -53,6 +54,11 @@
       </div>
     </div>
   </div>
+
+  <!-- 新加的 -->
+
+  <div id="sidebarOverlay"></div>
+
 
   <!-- 主体内容区 -->
   <div id="main">
