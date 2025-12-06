@@ -1,10 +1,9 @@
-# 路由定义
-
 # ===== backend/routes.py =====
+# 定义后端 API 路由：处理文件上传、校验、保存，并调用 COMTRADE 解析逻辑。
+
 from flask import Blueprint, request, jsonify, current_app
 from .services import save_files, process_comtrade_files
 from comtrade_parser.parser import parse_comtrade
-
 import os
 
 
@@ -12,6 +11,7 @@ bp = Blueprint('routes', __name__)
 
 @bp.route('/upload', methods=['POST'])
 def upload():
+    """处理前端上传的 .cfg 和 .dat 文件：校验、保存并解析 COMTRADE 数据。"""
     try:
         cfg_file = request.files['cfg']
         dat_file = request.files['dat']
@@ -39,4 +39,5 @@ def upload():
         return jsonify({"metadata": metadata, "waveform": waveform})
 
     except Exception as e:
+        # 捕获所有异常并返回前端
         return jsonify({"error": str(e)}), 500
