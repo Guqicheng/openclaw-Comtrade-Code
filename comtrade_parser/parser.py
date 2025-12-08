@@ -8,7 +8,7 @@ from .comtradecopy import Comtrade,Cfg
 
 def parse_comtrade(cfg_path, dat_path):
     c = Comtrade()
-    c.load(cfg_path, dat_path, encoding='gbk')
+    c.load(cfg_path, dat_path, encoding='gbk') # 需要添加encoding单独声明字符编码否则报错
 
     d = Cfg()
     d.load(cfg_path,encoding='gbk')

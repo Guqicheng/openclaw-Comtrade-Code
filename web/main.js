@@ -1,6 +1,8 @@
 // # ===== frontend/main.js =====    这个js文件主要控制输出波形图
+// 前端主逻辑：负责上传文件、显示元信息、管理通道选择、绘制多通道波形图、
+// 以及支持 Plotly 子图间联动缩放和移动端侧边栏交互。
 
-let originalXRange = null;
+let originalXRange = null;  // 保存初始 X 轴范围，用于重置缩放
 const allDivs = [];  // 收集所有子图 div
 let isSyncing = false; // ✅ 全局唯一声明
 
@@ -9,7 +11,7 @@ let currentWaveform = null;     // 当前波形数据
 let selectedChannels = [];      // 用户勾选的通道
 
 
-async function uploadFiles() {
+async function uploadFiles() {      // 上传 cfg/dat、调用后端解析并初始化页面
     const cfg = document.getElementById('cfgFile').files[0];
     const dat = document.getElementById('datFile').files[0];
 
@@ -33,21 +35,21 @@ async function uploadFiles() {
         return;
     }
 
-    displayMetadata(data.metadata);
-    currentWaveform = data.waveform;
+    displayMetadata(data.metadata);     // 展示元信息
+    currentWaveform = data.waveform;    // 保存波形
 
 
     // ✅ 初始化通道选择（只调用一次 populate，不要覆盖 applySelectedChannels 的逻辑）
     if (typeof populateChannelList === "function") {
-        populateChannelList(data.waveform);
+        populateChannelList(data.waveform);     // 初始化通道选择列表
     }
 
     // ✅ 默认绘制全部波形
-    selectedChannels = Object.keys(currentWaveform.analog);
+    selectedChannels = Object.keys(currentWaveform.analog);     // 默认全选
     renderPlots();
-}
+}           
 
-function displayMetadata(meta) {
+function displayMetadata(meta) {        // 渲染解析后的 COMTRADE 元信息
     const el = document.getElementById("metadata");
     el.innerHTML = `
         <p>变电站名称: ${meta.stationName}</p>
@@ -72,7 +74,7 @@ function displayMetadata(meta) {
 }
 
 
-function renderPlots() {
+function renderPlots() {        // 根据所选通道绘制多子图，并支持缩放联动
     const container = document.getElementById("plots");
     container.innerHTML = "";
     allDivs.length = 0;
@@ -80,7 +82,7 @@ function renderPlots() {
     if (!currentWaveform || !selectedChannels.length) return;
 
     const time = currentWaveform.time;
-    if (!originalXRange) {
+    if (!originalXRange) {          // 初始化原始 X 范围用于复位缩放
         originalXRange = [Math.min(...time), Math.max(...time)];
     }
 
@@ -93,11 +95,11 @@ function renderPlots() {
         container.appendChild(div);
         allDivs.push(div);
 
-        // ✅ 根据字数调整字体大小
+        //  根据字数调整字体大小
         const maxFontSize = 16;
         const minFontSize = 8;
         const baseLength = 10;
-        const dynamicFontSize = Math.max(
+        const dynamicFontSize = Math.max(       
             minFontSize,
             Math.min(maxFontSize, (baseLength / channelName.length) * maxFontSize)
         );
@@ -149,7 +151,7 @@ function renderPlots() {
 }
 
 
-// ✅ 重置缩放：让 Plotly 走和双击一样的逻辑
+// 重置缩放：让 Plotly 走和双击一样的逻辑
 function resetZoom() {
     if (!allDivs.length) return;
     isSyncing = true;
