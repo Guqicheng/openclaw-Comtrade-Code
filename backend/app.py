@@ -57,7 +57,7 @@ if __name__ == '__main__':
     app = create_app()
     port = 7000
 
-    # ✅ 仅 EXE 自动打开浏览器
+    #  仅 EXE 自动打开浏览器
     if getattr(sys, 'frozen', False):
         threading.Timer(1.0, open_browser, args=(port,)).start()
 

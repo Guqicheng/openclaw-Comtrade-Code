@@ -108,6 +108,40 @@ body, html {
 }
 
 
+#analogChannelList,
+#digitalChannelList {
+  max-height: 300px;
+  overflow-y: auto;
+  padding-left: 5px;
+  margin-top: 5px;
+  border-left: 3px solid #aaa; /* <<< 区分两组视觉风格 */
+}
+
+#analogChannelList label,
+#digitalChannelList label {
+  display: block;
+  padding: 2px 0;
+  cursor: pointer;
+  user-select: none;
+}
+
+/* <<< 修改点：数字通道颜色微区分 >>> */
+#digitalChannelList label {
+  color: #333;
+}
+
+
+/* ===== 分组标题 ===== */
+/* <<< 修改点：模拟 / 数字分组标题样式 >>> */
+.channel-group-title {
+  font-size: 14px;
+  font-weight: bold;
+  padding-top: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #ddd;
+  margin-top: 8px;
+}
+
 
 /* ===== 响应式适配（关键部分） ===== */
 
@@ -208,7 +242,8 @@ body, html {
     z-index: 900;
   }
 
-  #sidebar.open + #sidebarOverlay {
+  /* <<< 修复展开时遮罩层不显示的问题 >>> */
+  #sidebar.open ~ #sidebarOverlay {
     display: block;
   }
 }
@@ -220,3 +255,19 @@ body, html {
   }
 }
 
+/* ===== 子通道分组折叠支持（新增） ===== */
+.sub-panel.collapsible.collapsed .panel-content {
+  display: none;
+}
+
+/* ===== 通道分组按钮 ===== */
+.sub-buttons {
+  display: flex;
+  gap: 6px;
+  margin: 6px 0;
+}
+
+.sub-buttons button {
+  font-size: 12px;
+  padding: 2px 6px;
+}

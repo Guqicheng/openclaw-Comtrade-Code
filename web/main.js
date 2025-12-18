@@ -5,8 +5,6 @@
 let originalXRange = null;  // 保存初始 X 轴范围，用于重置缩放
 const allDivs = [];  // 收集所有子图 div
 let isSyncing = false; // ✅ 全局唯一声明
-
-// ===== main.js 顶部 =====
 let currentWaveform = null;     // 当前波形数据
 let selectedChannels = [];      // 用户勾选的通道
 
@@ -30,6 +28,7 @@ async function uploadFiles() {      // 上传 cfg/dat、调用后端解析并初
     });
 
     const data = await res.json();
+
     if (data.error) {
         alert("错误: " + data.error);
         return;
@@ -41,7 +40,8 @@ async function uploadFiles() {      // 上传 cfg/dat、调用后端解析并初
 
     // ✅ 初始化通道选择（只调用一次 populate，不要覆盖 applySelectedChannels 的逻辑）
     if (typeof populateChannelList === "function") {
-        populateChannelList(data.waveform);     // 初始化通道选择列表
+        // populateChannelList(data.waveform);     // 初始化通道选择列表
+        populateChannelList(currentWaveform);
     }
 
     // ✅ 默认绘制全部波形
@@ -86,67 +86,86 @@ function renderPlots() {        // 根据所选通道绘制多子图，并支持
         originalXRange = [Math.min(...time), Math.max(...time)];
     }
 
-    selectedChannels.forEach(channelName => {
-        const values = currentWaveform.analog[channelName];
-        if (!values) return; // 防御性判断
 
-        const div = document.createElement("div");
-        div.style.marginBottom = "6px";
-        container.appendChild(div);
-        allDivs.push(div);
+    // === 1) 显示模拟通道 analog ===
+    Object.keys(currentWaveform.analog).forEach(channelName => {
+        if (!selectedChannels.includes(channelName)) return;
 
-        //  根据字数调整字体大小
-        const maxFontSize = 16;
-        const minFontSize = 8;
-        const baseLength = 10;
-        const dynamicFontSize = Math.max(       
-            minFontSize,
-            Math.min(maxFontSize, (baseLength / channelName.length) * maxFontSize)
-        );
+        createPlotDiv(container, time, currentWaveform.analog[channelName], channelName);
+    });
 
-        const trace = {
-            x: time,
-            y: values,
-            mode: 'lines',
-            line: { width: 1 },
-            name: channelName
-        };
+    // === 2) 显示数字通道 digital ===
+    Object.keys(currentWaveform.digital || {}).forEach(channelName => {
+        if (!selectedChannels.includes(channelName)) return;
+        createPlotDiv(container, time, currentWaveform.digital[channelName], channelName, true);
+    }); 
 
-        const layout = {
-            height: 200,
-            margin: { l: 100, r: 20, t: 20, b: 30 },
-            yaxis: {
-                title: { 
-                    text: channelName, 
-                    standoff: 10,
-                    font: { size: dynamicFontSize }
+    
+}
+
+function createPlotDiv(container, time, values, channelName, isDigital = false) {
+    const div = document.createElement("div");
+    div.style.marginBottom = "6px";
+    container.appendChild(div);
+    allDivs.push(div);
+
+    const maxFontSize = 16;
+    const minFontSize = 8;
+    const baseLength = 10;
+    const dynamicFontSize = Math.max(
+        minFontSize,
+        Math.min(maxFontSize, (baseLength / channelName.length) * maxFontSize)
+    );
+
+    const trace = {
+        x: time,
+        y: values,
+        mode: 'lines',
+        line: { width: isDigital ? 2 : 1, shape: isDigital ? "hv" : "linear" }, // 数字通道用阶梯图
+        name: channelName
+    };
+
+    const layout = {
+        height: isDigital ? 120 : 200,   // 数字通道更矮一点
+        margin: { l: 100, r: 20, t: 20, b: 30 },
+        yaxis: {
+            title: {
+                text: channelName,
+                standoff: 10,
+                font: { size: dynamicFontSize }
+            },
+            range: isDigital ? [-0.5, 1.5] : undefined  // 数字通道固定范围
+        },
+        xaxis: {
+            title: "时间（秒）",
+            range: originalXRange.slice()
+        },
+        showlegend: false
+    };
+
+    Plotly.newPlot(div, [trace], layout, {
+        responsive: true,
+        displayModeBar: false
+    });
+
+    // 缩放联动
+    div.on('plotly_relayout', (eventData) => {
+        if (isSyncing) return;
+
+        if ('xaxis.range[0]' in eventData && 'xaxis.range[1]' in eventData) {
+            const range0 = eventData['xaxis.range[0]'];
+            const range1 = eventData['xaxis.range[1]'];
+
+            const update = { 'xaxis.range': [range0, range1] };
+
+            isSyncing = true;
+            allDivs.forEach((d) => {
+                if (d !== div) {
+                    Plotly.relayout(d, update);
                 }
-            },
-            xaxis: {
-                title: "时间（秒）",
-                range: originalXRange.slice()
-            },
-            showlegend: false
-        };
-
-        Plotly.newPlot(div, [trace], layout, {
-            responsive: true,
-            displayModeBar: false     
-        });
-
-        // 绑定联动缩放
-        div.on('plotly_relayout', (eventData) => {
-            if (isSyncing) return;
-
-            if ('xaxis.range[0]' in eventData && 'xaxis.range[1]' in eventData) {
-                const update = {
-                    'xaxis.range': [eventData['xaxis.range[0]'], eventData['xaxis.range[1]']]
-                };
-                isSyncing = true;
-                allDivs.forEach((d) => { if (d !== div) Plotly.relayout(d, update); });
-                isSyncing = false;
-            }
-        });
+            });
+            isSyncing = false;
+        }
     });
 }
 

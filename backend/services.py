@@ -3,7 +3,7 @@
 
 import os
 from werkzeug.utils import secure_filename
-from comtrade_parser.parser import parse_comtrade
+from comtrade_parser.parser import parse_metadata
 from .config import UPLOAD_FOLDER
 
 def save_files(cfg_file, dat_file):
@@ -21,4 +21,4 @@ def save_files(cfg_file, dat_file):
 
 def process_comtrade_files(cfg_path, dat_path):
     """调用 COMTRADE 解析函数，返回解析后的元信息和波形。"""
-    return parse_comtrade(cfg_path, dat_path)
+    return parse_metadata(cfg_path, dat_path)

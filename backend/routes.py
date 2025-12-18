@@ -3,7 +3,7 @@
 
 from flask import Blueprint, request, jsonify, current_app
 from .services import save_files, process_comtrade_files
-from comtrade_parser.parser import parse_comtrade
+from comtrade_parser.parser import parse_metadata
 import os
 
 
@@ -35,8 +35,35 @@ def upload():
         dat_file.save(dat_path)
 
         # 解析 COMTRADE
-        metadata, waveform = parse_comtrade(cfg_path, dat_path)
-        return jsonify({"metadata": metadata, "waveform": waveform})
+        # =============== 新增：解析 COMTRADE ==================
+        # 解析 metadata + reader（不包含 waveform）
+        reader, metadata = parse_metadata(cfg_path, dat_path)
+        # ========================================================
+
+        # =============== 新增：构造模拟通道 analog ===============
+        analog = {}
+        for i, ch in enumerate(reader.cfg.analog_channels):
+            analog[ch.name] = list(reader.analog[i])  # 转列表便于前端 JSON
+        # ========================================================
+
+        # =============== 新增：构造数字通道 digital ===============
+        digital = {}
+        for i, ch in enumerate(reader.cfg.status_channels):
+            digital[ch.name] = list(reader.status[i])
+        # ========================================================
+
+
+        # =============== 新增：统一构造 waveform 字典 ==============
+        waveform = {
+            "time": list(reader.time),      # 时间轴
+            "analog": analog,         # 模拟通道
+            "digital": digital        # 数字通道（你缺失的部分）
+        }
+        # ========================================================
+        return jsonify({
+            "metadata": metadata,
+            "waveform": waveform
+        })
 
     except Exception as e:
         # 捕获所有异常并返回前端

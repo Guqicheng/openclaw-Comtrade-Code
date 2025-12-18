@@ -39,7 +39,9 @@
     <!-- 通道选择 -->
     <div class="panel collapsible">
       <h3 onclick="togglePanel(this)">通道选择 ▼</h3>
+       
       <div class="panel-content">
+
         <div class="channel-top">
           <input type="text" id="channelSearch" placeholder="搜索通道...">
           <div class="channel-buttons">
@@ -48,9 +50,28 @@
             <button onclick="applySelectedChannels()">应用选择</button>
           </div>
         </div>
-        <div id="channelList">
-          <!-- 动态生成复选框 -->
+
+
+        <div class="sub-panel collapsible">
+          <h4 onclick="togglePanel(this)">模拟通道（Analog） ▼</h4>
+          <!--  模拟通道分组按钮 -->
+            <div class="sub-buttons">
+              <button onclick="selectAnalogChannels(true)">全选</button>
+              <button onclick="selectAnalogChannels(false)">全不选</button>
+            </div>
+          <div id="analogChannelList" class="panel-content sub-list"></div>
         </div>
+
+        <div class="sub-panel collapsible">
+          <h4 onclick="togglePanel(this)">数字通道（Digital） ▼</h4>
+            <!--  数字通道分组按钮 -->
+            <div class="sub-buttons">
+              <button onclick="selectDigitalChannels(true)">全选</button>
+              <button onclick="selectDigitalChannels(false)">全不选</button>
+            </div>
+          <div id="digitalChannelList" class="panel-content sub-list"></div>
+        </div>
+
       </div>
     </div>
   </div>
@@ -72,8 +93,9 @@
   </div>
 </div>
 
-<script src="main.js"></script>
 <script src="channelControls.js"></script>
+<script src="main.js"></script>
+
 
 <script>
   // 折叠/展开逻辑
