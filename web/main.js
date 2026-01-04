@@ -8,6 +8,36 @@ let isSyncing = false; // ✅ 全局唯一声明
 let currentWaveform = null;     // 当前波形数据
 let selectedChannels = [];      // 用户勾选的通道
 
+let visibleCount = 5;   // 当前视口希望看到的子图数量（3 / 4 / 5）
+
+
+function getPlotHeight() {     //工具函数 控制子图高度
+    const plots = document.getElementById("plots");
+    if (!plots) return 200;
+
+    const h = plots.clientHeight;
+    return Math.floor(h / visibleCount);
+}
+
+function togglePageSizeMenu() {
+    document.getElementById("pageSizeMenu").classList.toggle("hidden");
+}
+
+function setVisibleCount(count) {
+    visibleCount = count;
+
+    const btn = document.getElementById("pageSizeBtn");
+    if (btn) {
+        btn.textContent = `显示 ${count}`;
+    }
+
+    // 重新渲染
+    renderPlots();
+
+    // 收起下拉菜单
+    document.getElementById("pageSizeMenu").classList.add("hidden");
+}
+
 
 async function uploadFiles() {      // 上传 cfg/dat、调用后端解析并初始化页面
     const cfg = document.getElementById('cfgFile').files[0];
@@ -126,7 +156,8 @@ function createPlotDiv(container, time, values, channelName, isDigital = false) 
     };
 
     const layout = {
-        height: isDigital ? 120 : 200,   // 数字通道更矮一点
+        // height: isDigital ? 120 : 200,   // 数字通道更矮一点
+        height: getPlotHeight(),
         margin: { l: 100, r: 20, t: 20, b: 30 },
         yaxis: {
             title: {
@@ -225,5 +256,41 @@ document.addEventListener("DOMContentLoaded", () => {
   window.addEventListener("orientationchange", () => {
     setTimeout(() => toggleSidebar(true), 200);
   });
+
+
+
+
+   /* ===============================
+     二、新增：子图显示数量选择逻辑
+     =============================== */
+
+  const pageSizeBtn = document.getElementById("pageSizeBtn");
+  const pageSizeMenu = document.getElementById("pageSizeMenu");
+
+  if (pageSizeBtn && pageSizeMenu) {
+
+    // 点击 li（3 / 4 / 5）
+    pageSizeMenu.querySelectorAll("li").forEach(li => {
+      li.addEventListener("click", () => {
+        const size = Number(li.dataset.size); // ← data-size 的真正用途
+        setVisibleCount(size);
+
+        pageSizeMenu.classList.add("hidden"); // 选完自动收起
+      });
+    });
+
+    // 点击页面其他地方，自动收起菜单
+    document.addEventListener("click", (e) => {
+      if (!pageSizeBtn.contains(e.target) &&
+          !pageSizeMenu.contains(e.target)) {
+        pageSizeMenu.classList.add("hidden");
+      }
+    });
+  }
+
+
+
 });
+
+
 

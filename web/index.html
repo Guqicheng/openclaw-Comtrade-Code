@@ -86,6 +86,27 @@
     <!-- 悬浮控制面板 -->
     <div id="controlPanel">
       <button onclick="resetZoom()">重置缩放</button>
+
+        <!-- 每页子图数量选择 -->
+      <div class="page-size-selector">
+        <button id="pageSizeBtn" onclick="togglePageSizeMenu()">每页 5 个 ▾</button>
+        <ul id="pageSizeMenu" class="hidden">
+          <li data-size="3">3 个</li>
+          <li data-size="4">4 个</li>
+          <li data-size="5">5 个</li>
+        </ul>
+      </div>
+
+      <!-- <div class="page-size-selector">
+        <button id="pageSizeBtn" onclick="togglePageSizeMenu()">显示 5</button>
+          <ul id="pageSizeMenu" class="hidden">
+            <li onclick="setVisibleCount(3)">3</li>
+            <li onclick="setVisibleCount(4)">4</li>
+            <li onclick="setVisibleCount(5)">5</li>
+          </ul>
+      </div> -->
+
+
     </div>
 
     <!-- 波形图容器 -->

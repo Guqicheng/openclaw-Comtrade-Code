@@ -50,7 +50,49 @@ body, html {
   padding: 10px;
   border-radius: 8px;
   box-shadow: 0 0 6px rgba(0,0,0,0.2);
+
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
+
+/* 下拉控件样式 */
+.page-size-selector {
+  position: relative;
+}
+
+#pageSizeBtn {
+  padding: 4px 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+#pageSizeMenu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: #fff;
+  border: 1px solid #ccc;
+  list-style: none;
+  margin: 4px 0 0 0;
+  padding: 0;
+  width: 80px;
+}
+
+#pageSizeMenu li {
+  padding: 6px 8px;
+  cursor: pointer;
+  text-align: center;
+}
+
+#pageSizeMenu li:hover {
+  background-color: #f0f0f0;
+}
+
+.hidden {
+  display: none;
+}
+
 
 /* 面板样式 */
 .panel {
@@ -163,22 +205,22 @@ body, html {
   }
 
   /* ===== 移动端顶部菜单栏 ===== */
-#mobileHeader {
-  display: none;
-  align-items: center;
-  justify-content: space-between;
-  background: #0078d7;
-  color: white;
-  padding: 10px 15px;
-}
+  #mobileHeader {
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    background: #0078d7;
+    color: white;
+    padding: 10px 15px;
+  }
 
-#mobileHeader button {
-  background: none;
-  border: none;
-  color: white;
-  font-size: 1.3rem;
-  cursor: pointer;
-}
+  #mobileHeader button {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 1.3rem;
+    cursor: pointer;
+  }
 
   #main {
     height: 60vh;
