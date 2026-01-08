@@ -28,7 +28,7 @@ function setVisibleCount(count) {
 
     const btn = document.getElementById("pageSizeBtn");
     if (btn) {
-        btn.textContent = `显示 ${count}`;
+        btn.textContent = `每页 ${count} 个 ▾`;
     }
 
     // 重新渲染
@@ -66,7 +66,7 @@ async function uploadFiles() {      // 上传 cfg/dat、调用后端解析并初
 
     displayMetadata(data.metadata);     // 展示元信息
     currentWaveform = data.waveform;    // 保存波形
-
+    originalXRange = null; // ←  这个问题添加不知道是否又问题
 
     // ✅ 初始化通道选择（只调用一次 populate，不要覆盖 applySelectedChannels 的逻辑）
     if (typeof populateChannelList === "function") {
@@ -181,22 +181,36 @@ function createPlotDiv(container, time, values, channelName, isDigital = false) 
 
     // 缩放联动
     div.on('plotly_relayout', (eventData) => {
-        if (isSyncing) return;
+    if (isSyncing) return;
 
-        if ('xaxis.range[0]' in eventData && 'xaxis.range[1]' in eventData) {
-            const range0 = eventData['xaxis.range[0]'];
-            const range1 = eventData['xaxis.range[1]'];
+    const update = {};
 
-            const update = { 'xaxis.range': [range0, range1] };
+    // === X 轴联动 ===
+    if ('xaxis.range[0]' in eventData && 'xaxis.range[1]' in eventData) {
+        update['xaxis.range'] = [
+            eventData['xaxis.range[0]'],
+            eventData['xaxis.range[1]']
+        ];
+    }
 
-            isSyncing = true;
-            allDivs.forEach((d) => {
-                if (d !== div) {
-                    Plotly.relayout(d, update);
-                }
-            });
-            isSyncing = false;
+    // === Y 轴联动（新增）===
+    if ('yaxis.range[0]' in eventData && 'yaxis.range[1]' in eventData) {
+        update['yaxis.range'] = [
+            eventData['yaxis.range[0]'],
+            eventData['yaxis.range[1]']
+        ];
+    }
+
+    // 如果本次事件既没有 X 也没有 Y 的变化，直接忽略
+    if (Object.keys(update).length === 0) return;
+
+    isSyncing = true;
+    allDivs.forEach((d) => {
+        if (d !== div) {
+            Plotly.relayout(d, update);
         }
+    });
+    isSyncing = false;
     });
 }
 
@@ -214,48 +228,71 @@ function resetZoom() {
     isSyncing = false;
 }
 
-// ========== 移动端侧边栏开关 ==========
-function toggleSidebar() {
+/* ===============================
+   Sidebar – Desktop & Mobile
+   =============================== */
+
+// 横屏手机判断
+function isLandscapeMobile() {
+  return window.matchMedia(
+    "(max-width: 900px) and (orientation: landscape)"
+  ).matches;
+}
+
+// 桌面端侧栏
+function toggleSidebarDesktop() {
   const sidebar = document.getElementById("sidebar");
   sidebar.classList.toggle("active");
 }
 
-
-// 折叠逻辑
-document.addEventListener("DOMContentLoaded", () => {
+// 移动端（横屏）侧栏
+function toggleSidebarMobile(forceClose = false) {
   const sidebar = document.getElementById("sidebar");
+  const overlay = document.getElementById("sidebarOverlay");
+
+  if (forceClose) {
+    sidebar.classList.remove("open");
+    overlay.style.display = "none";
+    document.body.style.overflow = "";
+    return;
+  }
+
+  const isOpen = sidebar.classList.toggle("open");
+  overlay.style.display = isOpen ? "block" : "none";
+  document.body.style.overflow = isOpen ? "hidden" : "";
+}
+
+// 统一入口（唯一）
+function toggleSidebar() {
+  if (isLandscapeMobile()) {
+    toggleSidebarMobile();
+  } else {
+    toggleSidebarDesktop();
+  }
+}
+
+// 事件绑定
+document.addEventListener("DOMContentLoaded", () => {
   const toggleBtn = document.getElementById("toggleSidebar");
   const overlay = document.getElementById("sidebarOverlay");
 
-  // 在横屏模式下才生效
-  function isLandscapeMobile() {
-    return window.matchMedia("(max-width: 900px) and (orientation: landscape)").matches;
+  if (toggleBtn) {
+    toggleBtn.addEventListener("click", toggleSidebar);
   }
 
-  function toggleSidebar(forceClose = false) {
-    if (!isLandscapeMobile()) return; // 只在横屏手机上生效
-
-    if (forceClose) {
-      sidebar.classList.remove("open");
-      overlay.style.display = "none";
-      document.body.style.overflow = "";
-      return;
-    }
-
-    const isOpen = sidebar.classList.toggle("open");
-    overlay.style.display = isOpen ? "block" : "none";
-    document.body.style.overflow = isOpen ? "hidden" : "";
+  if (overlay) {
+    overlay.addEventListener("click", () => {
+      toggleSidebarMobile(true);
+    });
   }
 
-  if (toggleBtn && sidebar && overlay) {
-    toggleBtn.addEventListener("click", () => toggleSidebar());
-    overlay.addEventListener("click", () => toggleSidebar(true));
-  }
-
-  // 当横竖屏切换时自动关闭侧栏
+  // 横竖屏切换时，强制关闭移动端侧栏
   window.addEventListener("orientationchange", () => {
-    setTimeout(() => toggleSidebar(true), 200);
+    setTimeout(() => {
+      toggleSidebarMobile(true);
+    }, 200);
   });
+
 
 
 
