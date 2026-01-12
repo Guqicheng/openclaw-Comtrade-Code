@@ -14,9 +14,6 @@ function populateChannelList(waveform) {
 
     analogList.innerHTML = "";
     digitalList.innerHTML = "";
-   
-
-    
 
     selectedChannels = [];
 

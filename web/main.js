@@ -10,6 +10,12 @@ let selectedChannels = [];      // 用户勾选的通道
 
 let visibleCount = 5;   // 当前视口希望看到的子图数量（3 / 4 / 5）
 
+let globalCursorX = null;        // 当前参考线 X
+let isCursorModeEnabled = false; // 是否启用参考线模式
+
+let pendingRelayout = null;     //节流变量
+
+
 
 function getPlotHeight() {     //工具函数 控制子图高度
     const plots = document.getElementById("plots");
@@ -134,6 +140,12 @@ function renderPlots() {        // 根据所选通道绘制多子图，并支持
 }
 
 function createPlotDiv(container, time, values, channelName, isDigital = false) {
+
+    // debounce 防抖变量
+    let relayoutTimer = null;
+    const RELAYOUT_DEBOUNCE_MS = 60; // 40~80 都可以
+
+
     const div = document.createElement("div");
     div.style.marginBottom = "6px";
     container.appendChild(div);
@@ -176,49 +188,70 @@ function createPlotDiv(container, time, values, channelName, isDigital = false) 
 
     Plotly.newPlot(div, [trace], layout, {
         responsive: true,
-        displayModeBar: false
+        displayModeBar: false,
+        doubleClick: false   //不处理双颊重置   不知道用不用添加
     });
 
     // 缩放联动
     div.on('plotly_relayout', (eventData) => {
-    if (isSyncing) return;
+        if (isSyncing) return;
 
-    const update = {};
-
-    // === X 轴联动 ===
-    if ('xaxis.range[0]' in eventData && 'xaxis.range[1]' in eventData) {
-        update['xaxis.range'] = [
-            eventData['xaxis.range[0]'],
-            eventData['xaxis.range[1]']
-        ];
-    }
-
-    // === Y 轴联动（新增）===
-    if ('yaxis.range[0]' in eventData && 'yaxis.range[1]' in eventData) {
-        update['yaxis.range'] = [
-            eventData['yaxis.range[0]'],
-            eventData['yaxis.range[1]']
-        ];
-    }
-
-    // 如果本次事件既没有 X 也没有 Y 的变化，直接忽略
-    if (Object.keys(update).length === 0) return;
-
-    isSyncing = true;
-    allDivs.forEach((d) => {
-        if (d !== div) {
-            Plotly.relayout(d, update);
+        // === 新增：防抖 ===
+        if (relayoutTimer) {
+            clearTimeout(relayoutTimer);
         }
+
+        relayoutTimer = setTimeout(() => {
+            const update = {};
+
+            // === X 轴联动 ===
+            if ('xaxis.range[0]' in eventData && 'xaxis.range[1]' in eventData) {
+                update['xaxis.range'] = [
+                    eventData['xaxis.range[0]'],
+                    eventData['xaxis.range[1]']
+                ];
+            }
+
+            // === Y 轴联动 ===
+            if ('yaxis.range[0]' in eventData && 'yaxis.range[1]' in eventData) {
+                update['yaxis.range'] = [
+                    eventData['yaxis.range[0]'],
+                    eventData['yaxis.range[1]']
+                ];
+            }
+
+            if (Object.keys(update).length === 0) return;
+
+            isSyncing = true;
+            allDivs.forEach((d) => {
+                if (d !== div) {
+                    Plotly.relayout(d, update);
+                }
+            });
+            isSyncing = false;
+        }, RELAYOUT_DEBOUNCE_MS);
+        });
+
+    // ===== 新增：参考线点击事件 =====
+    div.on("plotly_click", (event) => { 
+        if (!isCursorModeEnabled) return;
+        if (!event.points || !event.points.length) return;
+
+        const xValue = event.points[0].x;
+        globalCursorX = xValue;
+
+        applyGlobalCursorLine(xValue);
     });
-    isSyncing = false;
-    });
+
 }
 
 
 // 重置缩放：让 Plotly 走和双击一样的逻辑
 function resetZoom() {
     if (!allDivs.length) return;
+
     isSyncing = true;
+
     allDivs.forEach((div) => {
         Plotly.relayout(div, {
             'xaxis.autorange': true,
@@ -226,11 +259,13 @@ function resetZoom() {
         });
     });
     isSyncing = false;
+
+    // ===== 关键修复：恢复参考线 =====
+  if (isCursorModeEnabled && globalCursorX !== null) {
+    applyGlobalCursorLine(globalCursorX);
+  }
 }
 
-/* ===============================
-   Sidebar – Desktop & Mobile
-   =============================== */
 
 // 横屏手机判断
 function isLandscapeMobile() {
@@ -293,14 +328,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }, 200);
   });
 
-
-
-
-
-   /* ===============================
-     二、新增：子图显示数量选择逻辑
-     =============================== */
-
+   /* 二、新增：子图显示数量选择逻辑 */
   const pageSizeBtn = document.getElementById("pageSizeBtn");
   const pageSizeMenu = document.getElementById("pageSizeMenu");
 
@@ -324,10 +352,123 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
   }
-
-
-
 });
+
+// 参考线js逻辑
+function toggleCursorMode() {
+  isCursorModeEnabled = !isCursorModeEnabled;
+
+  const btn = document.getElementById("cursorToggleBtn");
+  if (!btn) return;
+
+  if (isCursorModeEnabled) {
+    btn.textContent = "参考线：开";
+    btn.classList.add("active");
+  } else {
+    btn.textContent = "参考线：关";
+    btn.classList.remove("active");
+
+    // 可选：关闭时清除参考线
+    globalCursorX = null;
+    allDivs.forEach(div => {
+      Plotly.relayout(div, { shapes: [] });
+    });
+  }
+}
+
+// 参考线绘制函数
+// function applyGlobalCursorLine(xValue) {
+//     const shape = {
+//         type: "line",
+//         x0: xValue,
+//         x1: xValue,
+//         y0: 0,
+//         y1: 1,
+//         xref: "x",
+//         yref: "paper",
+//         line: {
+//             color: "red",
+//             width: 1,
+//             dash: "dot"
+//         }
+//     };
+
+//     allDivs.forEach(div => {
+//         Plotly.relayout(div, {
+//             shapes: [shape]
+//         });
+//     });
+// }
+
+// 参考线绘制函数
+function applyGlobalCursorLine(xValue) {
+
+    allDivs.forEach((div, index) => {
+
+        const gd = div; // Plotly graph div
+        const trace = gd.data[0];
+        const time = trace.x;
+        const values = trace.y;
+
+        const yValue = getYValueAtX(time, values, xValue);
+
+        const lineShape = {
+            type: "line",
+            x0: xValue,
+            x1: xValue,
+            y0: 0,
+            y1: 1,
+            xref: "x",
+            yref: "paper",
+            line: {
+                color: "red",
+                width: 1,
+                dash: "dot"
+            }
+        };
+
+        const annotation = {
+            x: xValue,
+            y: yValue,
+            xref: "x",
+            yref: "y",
+            text: `x=${xValue.toFixed(4)}<br>y=${yValue.toFixed(4)}`,
+            showarrow: true,
+            arrowhead: 2,
+            ax: 20,
+            ay: -20,
+            bgcolor: "rgba(255,255,255,0.85)",
+            bordercolor: "red",
+            borderwidth: 1,
+            font: { size: 10 }
+        };
+
+        Plotly.relayout(div, {
+            shapes: [lineShape],
+            annotations: [annotation]
+        });
+    });
+}
+
+
+
+// 参考线 更具x查y数值的工具函数
+// 后续功能可以再调整
+function getYValueAtX(timeArray, valueArray, x) {
+    let idx = 0;
+    let minDiff = Infinity;
+
+    for (let i = 0; i < timeArray.length; i++) {
+        const diff = Math.abs(timeArray[i] - x);
+        if (diff < minDiff) {
+            minDiff = diff;
+            idx = i;
+        }
+    }
+    return valueArray[idx];
+}
+
+
 
 
 

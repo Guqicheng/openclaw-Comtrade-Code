@@ -12,11 +12,6 @@
 <button id="toggleSidebar">☰</button>
 <div id="app">
 
-  <!-- 移动端顶部栏 -->
-  <!-- <div id="mobileHeader" style="display: none;">
-    <button id="menuToggle" >☰ 菜单</button>
-    <h2>COMTRADE Viewer</h2>
-  </div> -->
 
   <!-- 左侧边栏 -->
   <div id="sidebar">
@@ -85,9 +80,10 @@
   <div id="main">
     <!-- 悬浮控制面板 -->
     <div id="controlPanel">
+      <!-- 缩放控制 -->
       <button onclick="resetZoom()">重置缩放</button>
 
-        <!-- 每页子图数量选择 -->
+      <!-- 每页子图数量选择 -->
       <div class="page-size-selector">
         <button id="pageSizeBtn" onclick="togglePageSizeMenu()">每页 5 个 ▾</button>
         <ul id="pageSizeMenu" class="hidden">
@@ -97,14 +93,10 @@
         </ul>
       </div>
 
-      <!-- <div class="page-size-selector">
-        <button id="pageSizeBtn" onclick="togglePageSizeMenu()">显示 5</button>
-          <ul id="pageSizeMenu" class="hidden">
-            <li onclick="setVisibleCount(3)">3</li>
-            <li onclick="setVisibleCount(4)">4</li>
-            <li onclick="setVisibleCount(5)">5</li>
-          </ul>
-      </div> -->
+      <!-- 参考线开关 -->
+      <button id="cursorToggleBtn" onclick="toggleCursorMode()" class="cursor-btn">
+        参考线：关
+      </button>
 
 
     </div>

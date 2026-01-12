@@ -312,3 +312,9 @@ body, html {
   font-size: 12px;
   padding: 2px 6px;
 }
+
+/* 参考线的显示状态样式 */
+.cursor-btn.active {
+  background-color: #409eff;
+  color: #fff;
+}
