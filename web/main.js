@@ -146,10 +146,18 @@ function createPlotDiv(container, time, values, channelName, isDigital = false) 
     const RELAYOUT_DEBOUNCE_MS = 60; // 40~80 都可以
 
 
+    // ===== 新增：子图外层容器（用于顶部数据条）=====
+    const wrapper = document.createElement("div");
+    container.appendChild(wrapper);
+
+
+    // ===== 原有 Plotly 子图容器 =====
     const div = document.createElement("div");
-    div.style.marginBottom = "6px";
-    container.appendChild(div);
+    wrapper.appendChild(div);
+
+    // ⚠️ 注意：allDivs 仍然只收集 Plotly div
     allDivs.push(div);
+
 
     const maxFontSize = 16;
     const minFontSize = 8;
@@ -179,10 +187,13 @@ function createPlotDiv(container, time, values, channelName, isDigital = false) 
             },
             range: isDigital ? [-0.5, 1.5] : undefined  // 数字通道固定范围
         },
-        xaxis: {
-            title: "时间（秒）",
+        xaxis: {       
+            title: null,           // 【修改】移除单位标题
+            showticklabels: false, // 【修改】移除刻度文字
+            ticks: "",             // 【修改】移除刻度线
             range: originalXRange.slice()
         },
+
         showlegend: false
     };
 
@@ -376,42 +387,19 @@ function toggleCursorMode() {
   }
 }
 
-// 参考线绘制函数
-// function applyGlobalCursorLine(xValue) {
-//     const shape = {
-//         type: "line",
-//         x0: xValue,
-//         x1: xValue,
-//         y0: 0,
-//         y1: 1,
-//         xref: "x",
-//         yref: "paper",
-//         line: {
-//             color: "red",
-//             width: 1,
-//             dash: "dot"
-//         }
-//     };
-
-//     allDivs.forEach(div => {
-//         Plotly.relayout(div, {
-//             shapes: [shape]
-//         });
-//     });
-// }
 
 // 参考线绘制函数
 function applyGlobalCursorLine(xValue) {
 
-    allDivs.forEach((div, index) => {
+    allDivs.forEach((div) => {
 
-        const gd = div; // Plotly graph div
-        const trace = gd.data[0];
+        const trace = div.data[0];
         const time = trace.x;
         const values = trace.y;
 
         const yValue = getYValueAtX(time, values, xValue);
 
+        // ===== 参考线（始终 1 条）=====
         const lineShape = {
             type: "line",
             x0: xValue,
@@ -427,28 +415,32 @@ function applyGlobalCursorLine(xValue) {
             }
         };
 
+        // ===== 悬浮数值标注（贴近交点）=====
         const annotation = {
             x: xValue,
             y: yValue,
             xref: "x",
             yref: "y",
-            text: `x=${xValue.toFixed(4)}<br>y=${yValue.toFixed(4)}`,
+            text: `x=${xValue.toFixed(6)}<br>y=${yValue.toFixed(6)}`,
             showarrow: true,
             arrowhead: 2,
-            ax: 20,
-            ay: -20,
+            ax: 12,     // 轻微右移，避免遮挡参考线
+            ay: -12,    // 轻微上移
             bgcolor: "rgba(255,255,255,0.85)",
             bordercolor: "red",
             borderwidth: 1,
-            font: { size: 10 }
+            font: { size: 10 },
+            align: "left"
         };
 
+        // ===== 核心：始终整体替换，但数量恒定 =====
         Plotly.relayout(div, {
             shapes: [lineShape],
             annotations: [annotation]
         });
     });
 }
+
 
 
 
