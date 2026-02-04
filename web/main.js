@@ -381,6 +381,132 @@ function resetZoom() {
     }
 }
 
+// ===== 新增：放大功能 =====
+function zoomIn() {
+    if (!allDivs.length) return;
+    
+    // 获取当前X轴范围（从第一个子图获取）
+    const firstDiv = allDivs[0];
+    if (!firstDiv || !firstDiv.layout || !firstDiv.layout.xaxis || !firstDiv.layout.xaxis.range) {
+        console.warn("无法获取当前缩放状态");
+        return;
+    }
+    
+    const currentRange = firstDiv.layout.xaxis.range.slice();
+    const currentCenter = (currentRange[0] + currentRange[1]) / 2;
+    const currentWidth = currentRange[1] - currentRange[0];
+    
+    // 放大1.5倍（新的宽度是原来的 1/1.5 倍）
+    const zoomFactor = 1.5;
+    const newWidth = currentWidth / zoomFactor;
+    
+    // 计算新的范围，确保不超过原始数据范围
+    let newRange = [
+        currentCenter - newWidth / 2,
+        currentCenter + newWidth / 2
+    ];
+    
+    // 限制缩放范围：最小宽度为0.0001秒（防止过度放大）
+    const minWidth = 0.0001;
+    if (newWidth < minWidth) {
+        console.log("已达到最大放大级别");
+        return;
+    }
+    
+    // 确保新范围在原始数据范围内
+    if (originalXRange) {
+        if (newRange[0] < originalXRange[0]) {
+            newRange[0] = originalXRange[0];
+            newRange[1] = newRange[0] + newWidth;
+        }
+        if (newRange[1] > originalXRange[1]) {
+            newRange[1] = originalXRange[1];
+            newRange[0] = newRange[1] - newWidth;
+        }
+    }
+    
+    // 应用新的范围到所有子图
+    isSyncing = true;
+    
+    const updates = allDivs.map(div => {
+        return Plotly.relayout(div, {
+            'xaxis.range': newRange
+        });
+    });
+    
+    Promise.all(updates).then(() => {
+        isSyncing = false;
+        
+        // 如果参考线模式开启，重新绘制参考线
+        if (isCursorModeEnabled && globalCursorX !== null) {
+            setTimeout(() => {
+                applyGlobalCursorLine(globalCursorX);
+            }, 50);
+        }
+    });
+}
+
+// ===== 新增：缩小功能 =====
+function zoomOut() {
+    if (!allDivs.length) return;
+    
+    // 获取当前X轴范围（从第一个子图获取）
+    const firstDiv = allDivs[0];
+    if (!firstDiv || !firstDiv.layout || !firstDiv.layout.xaxis || !firstDiv.layout.xaxis.range) {
+        console.warn("无法获取当前缩放状态");
+        return;
+    }
+    
+    const currentRange = firstDiv.layout.xaxis.range.slice();
+    const currentCenter = (currentRange[0] + currentRange[1]) / 2;
+    const currentWidth = currentRange[1] - currentRange[0];
+    
+    // 缩小0.667倍（新的宽度是原来的 1.5 倍）
+    const zoomFactor = 1.5;
+    const newWidth = currentWidth * zoomFactor;
+    
+    // 计算新的范围
+    let newRange = [
+        currentCenter - newWidth / 2,
+        currentCenter + newWidth / 2
+    ];
+    
+    // 确保新范围在原始数据范围内
+    if (originalXRange) {
+        // 如果新范围超出原始范围，则调整到原始范围
+        if (newRange[0] < originalXRange[0] || newRange[1] > originalXRange[1]) {
+            // 如果当前范围已经等于或小于原始范围，则重置到原始范围
+            if (currentWidth >= (originalXRange[1] - originalXRange[0])) {
+                resetZoom();
+                return;
+            } else {
+                // 调整到最大可能范围
+                newRange = originalXRange.slice();
+            }
+        }
+    }
+    
+    // 应用新的范围到所有子图
+    isSyncing = true;
+    
+    const updates = allDivs.map(div => {
+        return Plotly.relayout(div, {
+            'xaxis.range': newRange
+        });
+    });
+    
+    Promise.all(updates).then(() => {
+        isSyncing = false;
+        
+        // 如果参考线模式开启，重新绘制参考线
+        if (isCursorModeEnabled && globalCursorX !== null) {
+            setTimeout(() => {
+                applyGlobalCursorLine(globalCursorX);
+            }, 50);
+        }
+    });
+}
+
 // ===== 需要替换的函数：toggleCursorMode =====
 function toggleCursorMode() {
     isCursorModeEnabled = !isCursorModeEnabled;

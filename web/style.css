@@ -318,3 +318,57 @@ body, html {
   background-color: #409eff;
   color: #fff;
 }
+
+/* ===== 新增：放大缩小控制样式 ===== */
+.zoom-controls {
+  display: flex;
+  gap: 2px; /* 更小的间距让按钮看起来更紧凑 */
+  margin-right: 10px;
+}
+
+.zoom-controls button {
+  padding: 6px 10px;
+  min-width: 40px; /* 固定宽度使按钮大小一致 */
+  font-weight: bold;
+  background-color: #4a5568;
+  color: white;
+  border: 1px solid #2d3748;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.zoom-controls button:hover {
+  background-color: #2d3748;
+}
+
+.zoom-controls button:active {
+  background-color: #1a202c;
+  transform: translateY(1px);
+}
+
+.zoom-controls button:nth-child(1) {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.zoom-controls button:nth-child(2) {
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+}
+
+.zoom-controls button:nth-child(3) {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  border-left: none;
+}
+
+/* 调整控制面板布局 */
+#controlPanel {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 15px;
+}
