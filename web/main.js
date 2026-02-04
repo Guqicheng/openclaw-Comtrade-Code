@@ -18,6 +18,9 @@ let isCursorModeEnabled = false; // 是否启用参考线模式
 // 在文件顶部的全局变量区域添加   
 let pendingRelayout = null; // 全局防抖定时器
 
+// ===== 新增：子图创建计数器 =====
+let plotCreationCounter = { total: 0, completed: 0 };
+
 
 
 function getPlotHeight() {     //工具函数 控制子图高度
@@ -52,9 +55,6 @@ function setVisibleCount(count) {  //分页函数
         plots.style.transition = "";
     }, 50);
 
-    // // 重新渲染
-    // renderPlots();
-
     // 收起下拉菜单
     document.getElementById("pageSizeMenu").classList.add("hidden");
 }
@@ -87,11 +87,10 @@ async function uploadFiles() {      // 上传 cfg/dat、调用后端解析并初
 
     displayMetadata(data.metadata);     // 展示元信息
     currentWaveform = data.waveform;    // 保存波形
-    originalXRange = null; // ←  这个问题添加不知道是否又问题
+    originalXRange = null;
 
     // ✅ 初始化通道选择（只调用一次 populate，不要覆盖 applySelectedChannels 的逻辑）
     if (typeof populateChannelList === "function") {
-        // populateChannelList(data.waveform);     // 初始化通道选择列表
         populateChannelList(currentWaveform);
     }
 
@@ -128,7 +127,7 @@ function displayMetadata(meta) {        // 渲染解析后的 COMTRADE 元信息
 function renderPlots() {        // 根据所选通道绘制多子图，并支持缩放联动
     const container = document.getElementById("plots");
 
-     // 清理现有的定时器  新修改
+     // 清理现有的定时器
     if (pendingRelayout) {
         clearTimeout(pendingRelayout);
         pendingRelayout = null;
@@ -149,20 +148,30 @@ function renderPlots() {        // 根据所选通道绘制多子图，并支持
     }
 
     container.innerHTML = "";
-    allDivs.length = 0;
+    allDivs.length = 0;  // 清空数组
 
     if (!currentWaveform || !selectedChannels.length) return;
 
     const time = currentWaveform.time;
-    if (!originalXRange) {          // 初始化原始 X 范围用于复位缩放
+    if (!originalXRange) {
         originalXRange = [Math.min(...time), Math.max(...time)];
     }
 
+    // ===== 修正：重置子图创建计数器 =====
+    plotCreationCounter.total = 0;
+    plotCreationCounter.completed = 0;
+    
+    // 计算需要创建的子图总数
+    Object.keys(currentWaveform.analog).forEach(channelName => {
+        if (selectedChannels.includes(channelName)) plotCreationCounter.total++;
+    });
+    Object.keys(currentWaveform.digital || {}).forEach(channelName => {
+        if (selectedChannels.includes(channelName)) plotCreationCounter.total++;
+    });
 
     // === 1) 显示模拟通道 analog ===
     Object.keys(currentWaveform.analog).forEach(channelName => {
         if (!selectedChannels.includes(channelName)) return;
-
         createPlotDiv(container, time, currentWaveform.analog[channelName], channelName);
     });
 
@@ -172,44 +181,40 @@ function renderPlots() {        // 根据所选通道绘制多子图，并支持
         createPlotDiv(container, time, currentWaveform.digital[channelName], channelName, true);
     }); 
 
-    // 恢复之前的缩放状态   新添加
+    // ===== 修正：使用回调机制确保所有子图创建完成 =====
+    // 如果有缩放状态需要恢复，则设置一个等待所有子图创建完成的回调
     if (currentXRange) {
-        setTimeout(() => {
+        window.restoreZoomAfterAllPlots = () => {
+            // 恢复缩放状态
             allDivs.forEach(div => {
-                Plotly.relayout(div, {
-                    'xaxis.range': currentXRange
-                });
+                if (div && div.layout) {
+                    Plotly.relayout(div, {
+                        'xaxis.range': currentXRange
+                    });
+                }
             });
             
             // 如果参考线模式开启，重新绘制
             if (isCursorModeEnabled && globalCursorX !== null) {
-                requestAnimationFrame(() => {
+                setTimeout(() => {
                     applyGlobalCursorLine(globalCursorX);
-                });
+                }, 50);
             }
-        }, 100);
+        };
     }
-
-    
 }
 
+// ===== 需要替换的函数：createPlotDiv =====
 function createPlotDiv(container, time, values, channelName, isDigital = false) {
+    const RELAYOUT_DEBOUNCE_MS = 60;
 
-    // debounce 防抖变量
-    // let relayoutTimer = null;   // 移除局部 relayoutTimer，使用全局变量
-    const RELAYOUT_DEBOUNCE_MS = 60; // 40~80 都可以
-
-
-    // ===== 新增：子图外层容器（用于顶部数据条）=====
+    // ===== 子图外层容器 =====
     const wrapper = document.createElement("div");
     container.appendChild(wrapper);
 
-
-    // ===== 原有 Plotly 子图容器 =====
+    // ===== Plotly 子图容器 =====
     const div = document.createElement("div");
     wrapper.appendChild(div);
-    allDivs.push(div);
-
 
     const maxFontSize = 16;
     const minFontSize = 8;
@@ -223,12 +228,11 @@ function createPlotDiv(container, time, values, channelName, isDigital = false) 
         x: time,
         y: values,
         mode: 'lines',
-        line: { width: isDigital ? 2 : 1, shape: isDigital ? "hv" : "linear" }, // 数字通道用阶梯图
+        line: { width: isDigital ? 2 : 1, shape: isDigital ? "hv" : "linear" },
         name: channelName
     };
 
     const layout = {
-        // height: isDigital ? 120 : 200,   // 数字通道更矮一点
         height: getPlotHeight(),
         margin: { l: 100, r: 20, t: 20, b: 30 },
         yaxis: {
@@ -240,138 +244,251 @@ function createPlotDiv(container, time, values, channelName, isDigital = false) 
             range: isDigital ? [-0.5, 1.5] : undefined  // 数字通道固定范围
         },
         xaxis: {       
-            title: null,           // 【修改】移除单位标题
-            showticklabels: false, // 【修改】移除刻度文字
-            ticks: "",             // 【修改】移除刻度线
+            title: null,
+            showticklabels: false,
+            ticks: "",
             range: originalXRange.slice()
         },
-
         showlegend: false
     };
 
+    // ===== 修正：使用Promise跟踪图表创建完成 =====
     Plotly.newPlot(div, [trace], layout, {
         responsive: true,
         displayModeBar: false,
-        doubleClick: false   //不处理双颊重置   不知道用不用添加
-    });
-
-    // 缩放联动
-    div.on('plotly_relayout', (eventData) => {
-
-        // 如果是参考线更新触发的 relayout，跳过联动逻辑
-        if (eventData['shapes'] !== undefined || eventData['annotations'] !== undefined) {
-            return;
-        }
-
-        if (isSyncing) return;
-
-        // // === 新增：防抖 ===
-        // if (relayoutTimer) {
-        //     clearTimeout(relayoutTimer);
-        // }
-
-        // 清除之前的防抖定时器
-        if (pendingRelayout) {
-            clearTimeout(pendingRelayout);
-        }
-
-
-        // relayoutTimer = setTimeout(() => {
-        pendingRelayout = setTimeout(() => {
-            const update = {};
-
-            // === X 轴联动 ===
-            if ('xaxis.range[0]' in eventData && 'xaxis.range[1]' in eventData) {
-                update['xaxis.range'] = [
-                    eventData['xaxis.range[0]'],
-                    eventData['xaxis.range[1]']
-                ];
+        doubleClick: false
+    }).then(() => {
+        // 缩放联动事件绑定
+        div.on('plotly_relayout', (eventData) => {
+            // 如果是参考线更新触发的 relayout，跳过联动逻辑
+            if (eventData['shapes'] !== undefined || eventData['annotations'] !== undefined) {
+                return;
             }
 
-            // === Y 轴联动 ===
-            // if ('yaxis.range[0]' in eventData && 'yaxis.range[1]' in eventData) {
-            //     update['yaxis.range'] = [
-            //         eventData['yaxis.range[0]'],
-            //         eventData['yaxis.range[1]']
-            //     ];
-            // }
+            if (isSyncing) return;
 
-            // === Y 轴联动（仅限模拟通道）===
-            if (!isDigital && 'yaxis.range[0]' in eventData && 'yaxis.range[1]' in eventData) {
-                update['yaxis.range'] = [
-                    eventData['yaxis.range[0]'],
-                    eventData['yaxis.range[1]']
-                ];
+            // 清除之前的防抖定时器
+            if (pendingRelayout) {
+                clearTimeout(pendingRelayout);
             }
 
-            if (Object.keys(update).length === 0) return;
+            pendingRelayout = setTimeout(() => {
+                const update = {};
 
-            isSyncing = true;
-
-            //批量更新子图 
-            // 以下内容暂时不使用 
-            // allDivs.forEach((d) => {
-            //     if (d !== div) {
-            //         Plotly.relayout(d, update);
-            //     }
-            // });
-            // 批量更新所有子图
-            const updates = allDivs.map(d => {
-                if (d !== div) {
-                    return Plotly.relayout(d, update);
+                // === X 轴联动 ===
+                if ('xaxis.range[0]' in eventData && 'xaxis.range[1]' in eventData) {
+                    update['xaxis.range'] = [
+                        eventData['xaxis.range[0]'],
+                        eventData['xaxis.range[1]']
+                    ];
                 }
-                return Promise.resolve();
-            });
 
-            //    
-            Promise.all(updates).then(() => {
-                isSyncing = false;
-                
-                // 如果参考线模式开启，重新绘制参考线
-                if (isCursorModeEnabled && globalCursorX !== null) {
-                    requestAnimationFrame(() => {
-                        applyGlobalCursorLine(globalCursorX);
-                    });
+                // === Y 轴联动（仅限模拟通道）===
+                if (!isDigital && 'yaxis.range[0]' in eventData && 'yaxis.range[1]' in eventData) {
+                    update['yaxis.range'] = [
+                        eventData['yaxis.range[0]'],
+                        eventData['yaxis.range[1]']
+                    ];
                 }
-            });
-            
-        }, RELAYOUT_DEBOUNCE_MS);
+
+                if (Object.keys(update).length === 0) return;
+
+                isSyncing = true;
+
+                // 批量更新所有子图
+                const updates = allDivs.map(d => {
+                    if (d !== div) {
+                        return Plotly.relayout(d, update);
+                    }
+                    return Promise.resolve();
+                });
+
+                Promise.all(updates).then(() => {
+                    isSyncing = false;
+                    
+                    // 如果参考线模式开启，重新绘制参考线
+                    if (isCursorModeEnabled && globalCursorX !== null) {
+                        requestAnimationFrame(() => {
+                            applyGlobalCursorLine(globalCursorX);
+                        });
+                    }
+                });
+            }, RELAYOUT_DEBOUNCE_MS);
+        });
+
+        // 参考线点击事件
+        div.on("plotly_click", (event) => { 
+            if (!isCursorModeEnabled) return;
+            if (!event.points || !event.points.length) return;
+
+            const xValue = event.points[0].x;
+            globalCursorX = xValue;
+            applyGlobalCursorLine(xValue);
+        });
+        
+        // ===== 重要：在图表完全创建后再添加到 allDivs =====
+        allDivs.push(div);
+        
+        // ===== 更新计数器，检查是否所有子图都创建完成 =====
+        plotCreationCounter.completed++;
+        if (plotCreationCounter.completed === plotCreationCounter.total) {
+            // 所有子图都创建完成，执行缩放恢复
+            if (typeof window.restoreZoomAfterAllPlots === 'function') {
+                setTimeout(() => {
+                    window.restoreZoomAfterAllPlots();
+                    // 清理回调函数
+                    delete window.restoreZoomAfterAllPlots;
+                }, 0);
+            }
+        }
     });
-
-    // ===== 新增：参考线点击事件 =====
-    div.on("plotly_click", (event) => { 
-        if (!isCursorModeEnabled) return;
-        if (!event.points || !event.points.length) return;
-
-        const xValue = event.points[0].x;
-        globalCursorX = xValue;
-
-        applyGlobalCursorLine(xValue);
-    });
-
 }
 
-
-// 重置缩放：让 Plotly 走和双击一样的逻辑
+// ===== 需要替换的函数：resetZoom =====
 function resetZoom() {
     if (!allDivs.length) return;
 
     isSyncing = true;
 
     allDivs.forEach((div) => {
-        Plotly.relayout(div, {
-            'xaxis.autorange': true,
-            'yaxis.autorange': true
-        });
+        // ===== 修正：区分数字通道和模拟通道 =====
+        const trace = div.data && div.data[0];
+        const isDigital = trace && trace.line && trace.line.shape === 'hv';
+        
+        const update = {
+            'xaxis.autorange': true
+        };
+        
+        // 只有模拟通道重置 y 轴，数字通道保持固定范围
+        if (!isDigital) {
+            update['yaxis.autorange'] = true;
+        } else {
+            // 数字通道重置为固定范围 [-0.5, 1.5]
+            update['yaxis.range'] = [-0.5, 1.5];
+        }
+        
+        Plotly.relayout(div, update);
     });
+    
     isSyncing = false;
 
     // ===== 关键修复：恢复参考线 =====
-  if (isCursorModeEnabled && globalCursorX !== null) {
-    applyGlobalCursorLine(globalCursorX);
-  }
+    if (isCursorModeEnabled && globalCursorX !== null) {
+        // 使用setTimeout确保重置缩放完成后再绘制参考线
+        setTimeout(() => {
+            applyGlobalCursorLine(globalCursorX);
+        }, 50);
+    }
 }
 
+// ===== 需要替换的函数：toggleCursorMode =====
+function toggleCursorMode() {
+    isCursorModeEnabled = !isCursorModeEnabled;
+
+    const btn = document.getElementById("cursorToggleBtn");
+    if (!btn) return;
+
+    if (isCursorModeEnabled) {
+        btn.textContent = "参考线：开";
+        btn.classList.add("active");
+    } else {
+        btn.textContent = "参考线：关";
+        btn.classList.remove("active");
+
+        // ===== 修正：同时清除参考线和标注 =====
+        globalCursorX = null;
+        
+        // 批处理清除
+        allDivs.forEach(div => {
+            if (div && div.layout) {
+                Plotly.relayout(div, { 
+                    shapes: [],
+                    annotations: []  // 新增：清除标注
+                });
+            }
+        });
+    }
+}
+
+// ===== 需要替换的函数：applyGlobalCursorLine =====
+function applyGlobalCursorLine(xValue) {
+    // 批量更新，减少重绘次数
+    const updates = allDivs.map((div) => {
+        // ===== 修正：添加安全检查 =====
+        if (!div || !div.data || !div.data[0]) {
+            console.warn('参考线绘制：子图数据未就绪', div);
+            return Promise.resolve();
+        }
+
+        const trace = div.data[0];
+        const time = trace.x;
+        const values = trace.y;
+
+        const yValue = getYValueAtX(time, values, xValue);
+
+        // 参考线
+        const lineShape = {
+            type: "line",
+            x0: xValue,
+            x1: xValue,
+            y0: 0,
+            y1: 1,
+            xref: "x",
+            yref: "paper",
+            line: {
+                color: "red",
+                width: 1,
+                dash: "dot"
+            }
+        };
+
+        // 悬浮数值标注
+        const annotation = {
+            x: xValue,
+            y: yValue,
+            xref: "x",
+            yref: "y",
+            text: `x=${xValue.toFixed(6)}<br>y=${yValue.toFixed(6)}`,
+            showarrow: true,
+            arrowhead: 2,
+            ax: 12,
+            ay: -12,
+            bgcolor: "rgba(255,255,255,0.85)",
+            bordercolor: "red",
+            borderwidth: 1,
+            font: { size: 10 },
+            align: "left"
+        };
+
+        return Plotly.relayout(div, {
+            shapes: [lineShape],
+            annotations: [annotation]
+        });
+    });
+
+    // 等待所有更新完成
+    return Promise.all(updates);
+}
+
+// ===== 需要替换的函数：stabilizeLayout =====
+function stabilizeLayout() {
+    if (allDivs.length === 0) return;
+    
+    const height = getPlotHeight();
+    
+    // 批处理更新，减少重绘次数
+    const updates = allDivs.map(div => {
+        // ===== 修正：添加安全检查 =====
+        if (!div || !div.layout) {
+            return Promise.resolve();
+        }
+        return Plotly.relayout(div, {
+            height: height
+        });
+    });
+    
+    return Promise.all(updates);
+}
 
 // 横屏手机判断
 function isLandscapeMobile() {
@@ -412,6 +529,21 @@ function toggleSidebar() {
   }
 }
 
+// 参考线 更具x查y数值的工具函数
+function getYValueAtX(timeArray, valueArray, x) {
+    let idx = 0;
+    let minDiff = Infinity;
+
+    for (let i = 0; i < timeArray.length; i++) {
+        const diff = Math.abs(timeArray[i] - x);
+        if (diff < minDiff) {
+            minDiff = diff;
+            idx = i;
+        }
+    }
+    return valueArray[idx];
+}
+
 // 事件绑定
 document.addEventListener("DOMContentLoaded", () => {
   const toggleBtn = document.getElementById("toggleSidebar");
@@ -439,14 +571,11 @@ document.addEventListener("DOMContentLoaded", () => {
   const pageSizeMenu = document.getElementById("pageSizeMenu");
 
   if (pageSizeBtn && pageSizeMenu) {
-
-    // 点击 li（3 / 4 / 5）
     pageSizeMenu.querySelectorAll("li").forEach(li => {
       li.addEventListener("click", () => {
-        const size = Number(li.dataset.size); // ← data-size 的真正用途
+        const size = Number(li.dataset.size);
         setVisibleCount(size);
-
-        pageSizeMenu.classList.add("hidden"); // 选完自动收起
+        pageSizeMenu.classList.add("hidden");
       });
     });
 
@@ -458,143 +587,17 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
   }
-});
 
-// 参考线js逻辑
-function toggleCursorMode() {
-  isCursorModeEnabled = !isCursorModeEnabled;
-
-  const btn = document.getElementById("cursorToggleBtn");
-  if (!btn) return;
-
-  if (isCursorModeEnabled) {
-    btn.textContent = "参考线：开";
-    btn.classList.add("active");
-  } else {
-    btn.textContent = "参考线：关";
-    btn.classList.remove("active");
-
-    // 可选：关闭时清除参考线
-    globalCursorX = null;
-    allDivs.forEach(div => {
-      Plotly.relayout(div, { shapes: [] });
-    });
-  }
-}
-
-
-// 参考线绘制函数
-function applyGlobalCursorLine(xValue) {
-
-    // allDivs.forEach((div) => {
-    // 批量更新，减少重绘次数 新修改
-    const updates = allDivs.map((div, index) => {
-
-        const trace = div.data[0];
-        const time = trace.x;
-        const values = trace.y;
-
-        const yValue = getYValueAtX(time, values, xValue);
-
-        // ===== 参考线（始终 1 条）=====
-        const lineShape = {
-            type: "line",
-            x0: xValue,
-            x1: xValue,
-            y0: 0,
-            y1: 1,
-            xref: "x",
-            yref: "paper",
-            line: {
-                color: "red",
-                width: 1,
-                dash: "dot"
-            }
-        };
-
-        // ===== 悬浮数值标注（贴近交点）=====
-        const annotation = {
-            x: xValue,
-            y: yValue,
-            xref: "x",
-            yref: "y",
-            text: `x=${xValue.toFixed(6)}<br>y=${yValue.toFixed(6)}`,
-            showarrow: true,
-            arrowhead: 2,
-            ax: 12,     // 轻微右移，避免遮挡参考线
-            ay: -12,    // 轻微上移
-            bgcolor: "rgba(255,255,255,0.85)",
-            bordercolor: "red",
-            borderwidth: 1,
-            font: { size: 10 },
-            align: "left"
-        };
-
-        // ===== 核心：始终整体替换，但数量恒定 =====
-        // Plotly.relayout(div, {
-        //     shapes: [lineShape],
-        //     annotations: [annotation]
-        // });
-
-        // 使用 batch 模式更新
-        return Plotly.relayout(div, {
-            shapes: [lineShape],
-            annotations: [annotation]
-        });
-    });
-
-    // 等待所有更新完成 新添加
-    return Promise.all(updates);
-}
-
-
-
-
-// 参考线 更具x查y数值的工具函数
-// 后续功能可以再调整
-function getYValueAtX(timeArray, valueArray, x) {
-    let idx = 0;
-    let minDiff = Infinity;
-
-    for (let i = 0; i < timeArray.length; i++) {
-        const diff = Math.abs(timeArray[i] - x);
-        if (diff < minDiff) {
-            minDiff = diff;
-            idx = i;
-        }
-    }
-    return valueArray[idx];
-}
-
-// 重置布局函数
-function stabilizeLayout() {
-    if (allDivs.length === 0) return;
-    
-    // 统一所有子图的高度
-    const height = getPlotHeight();
-    allDivs.forEach(div => {
-        Plotly.relayout(div, {
-            height: height
-        });
-    });
-}
-
-
-// 窗口调整大小调用函数
-// 在 DOMContentLoaded 事件监听器中添加
-window.addEventListener('resize', () => {
-    // 使用防抖防止频繁触发
+  // 窗口调整大小事件
+  window.addEventListener('resize', () => {
     clearTimeout(window.resizeTimer);
     window.resizeTimer = setTimeout(() => {
-        if (allDivs.length > 0) {
-            stabilizeLayout();
-            if (isCursorModeEnabled && globalCursorX !== null) {
-                applyGlobalCursorLine(globalCursorX);
-            }
+      if (allDivs.length > 0) {
+        stabilizeLayout();
+        if (isCursorModeEnabled && globalCursorX !== null) {
+          applyGlobalCursorLine(globalCursorX);
         }
+      }
     }, 250);
+  });
 });
-
-
-
-
