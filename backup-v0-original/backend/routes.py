@@ -3,7 +3,6 @@
 
 from flask import Blueprint, request, jsonify, current_app
 from .services import save_files, process_comtrade_files
-from .analysis_routes import set_current_files
 from comtrade_parser.parser import parse_metadata
 import os
 
@@ -61,11 +60,6 @@ def upload():
             "digital": digital        # 数字通道（你缺失的部分）
         }
         # ========================================================
-
-        # =============== 新增：通知分析模块加载当前文件 ==============
-        set_current_files(cfg_path, dat_path)
-        # ========================================================
-
         return jsonify({
             "metadata": metadata,
             "waveform": waveform

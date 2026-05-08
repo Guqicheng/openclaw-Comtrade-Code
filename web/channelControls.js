@@ -1,15 +1,11 @@
 // # ===== frontend/channelControls.js =====
-// 控制通道选择、搜索、全选/全不选/应用选择
+// 通道选择、搜索、全选/全不选/应用选择
 
-// 初始化通道列表
 function populateChannelList(waveform) {
-
     currentWaveform = waveform;
 
-     // <<< 修改点：改为双列表 >>> 
     const analogList = document.getElementById("analogChannelList");
     const digitalList = document.getElementById("digitalChannelList");
-
     if (!analogList || !digitalList) return;
 
     analogList.innerHTML = "";
@@ -17,25 +13,33 @@ function populateChannelList(waveform) {
 
     selectedChannels = [];
 
-    // === 1) 模拟通道（默认选中） ===                
-    Object.keys(waveform.analog).forEach(channelName => {
-        addChannelCheckbox(analogList, channelName, true);
-        selectedChannels.push(channelName);
-    }); 
+    const analogKeys = Object.keys(waveform.analog);
+    const digitalKeys = Object.keys(waveform.digital || {});
 
-    // === 2) 数字通道（默认不选中） ===
-    Object.keys(waveform.digital || {}).forEach(channelName => {
-        addChannelCheckbox(digitalList, channelName, false);
+    // 模拟通道（默认选中）
+    analogKeys.forEach(chName => {
+        addChannelCheckbox(analogList, chName, true);
+        selectedChannels.push(chName);
     });
 
-    // ✅ 默认全选
-    // selectedChannels = Object.keys(waveform.analog);
-    setupChannelSearch(); // 初始化搜索
+    // 数字通道（默认不选）
+    digitalKeys.forEach(chName => {
+        addChannelCheckbox(digitalList, chName, false);
+    });
+
+    // 更新计数徽章
+    const analogBadge = document.getElementById("analogCount");
+    if (analogBadge) analogBadge.textContent = analogKeys.length;
+
+    const digitalBadge = document.getElementById("digitalCount");
+    if (digitalBadge) digitalBadge.textContent = digitalKeys.length;
+
+    setupChannelSearch();
 }
 
 function addChannelCheckbox(parent, channelName, checked) {
     const label = document.createElement("label");
-    label.style.display = "block";
+    label.style.cssText = "display:flex;align-items:center;gap:4px;padding:1px 0;cursor:pointer;font-size:12px;";
 
     const checkbox = document.createElement("input");
     checkbox.type = "checkbox";
@@ -44,37 +48,36 @@ function addChannelCheckbox(parent, channelName, checked) {
 
     checkbox.addEventListener("change", () => {
         if (checkbox.checked) {
-            if (!selectedChannels.includes(channelName))
-                selectedChannels.push(channelName);
+            if (!selectedChannels.includes(channelName)) selectedChannels.push(channelName);
         } else {
             selectedChannels = selectedChannels.filter(c => c !== channelName);
         }
     });
 
     label.appendChild(checkbox);
-    label.appendChild(document.createTextNode(" " + channelName));
+    label.appendChild(document.createTextNode(channelName));
     parent.appendChild(label);
 }
 
-
-// 搜索功能
 function setupChannelSearch() {
     const searchInput = document.getElementById("channelSearch");
     if (!searchInput) return;
 
-    searchInput.addEventListener("input", function () {
-        const keyword = this.value.toLowerCase();
+    // 移除旧事件，避免重复绑定
+    const newInput = searchInput.cloneNode(true);
+    searchInput.parentNode.replaceChild(newInput, searchInput);
 
+    newInput.addEventListener("input", function () {
+        const keyword = this.value.toLowerCase();
         document.querySelectorAll("#analogChannelList label, #digitalChannelList label").forEach(label => {
             const text = label.textContent.toLowerCase();
-            label.style.display = text.includes(keyword) ? "block" : "none";
+            label.style.display = text.includes(keyword) ? "flex" : "none";
         });
     });
 }
 
-// === 全选 / 全不选 ===
+// 全选/全不选
 function selectAllChannels(select = true) {
-
     document.querySelectorAll("#analogChannelList input, #digitalChannelList input").forEach(cb => {
         cb.checked = select;
     });
@@ -89,58 +92,11 @@ function selectAllChannels(select = true) {
     }
 }
 
-// ✅ 应用选择
+// 应用选择
 function applySelectedChannels() {
     if (!currentWaveform) return;
-    // 更新选中的通道
     selectedChannels = Array.from(
         document.querySelectorAll("#analogChannelList input:checked, #digitalChannelList input:checked")
     ).map(cb => cb.value);
-
     renderPlots();
 }
-
-// ===== 模拟通道分组控制 =====
-function selectAnalogChannels(select = true) {
-  const checkboxes = document.querySelectorAll(
-    "#analogChannelList input[type=checkbox]"
-  );
-
-  checkboxes.forEach(cb => {
-    cb.checked = select;
-    const name = cb.value;
-
-    if (select) {
-      if (!selectedChannels.includes(name)) {
-        selectedChannels.push(name);
-      }
-    } else {
-      selectedChannels = selectedChannels.filter(c => c !== name);
-    }
-  });
-}
-
-// ===== 数字通道分组控制 =====
-function selectDigitalChannels(select = true) {
-  const checkboxes = document.querySelectorAll(
-    "#digitalChannelList input[type=checkbox]"
-  );
-
-  checkboxes.forEach(cb => {
-    cb.checked = select;
-    const name = cb.value;
-
-    if (select) {
-      if (!selectedChannels.includes(name)) {
-        selectedChannels.push(name);
-      }
-    } else {
-      selectedChannels = selectedChannels.filter(c => c !== name);
-    }
-  });
-}
-
-
-
-// 页面初始化时调用
-document.addEventListener("DOMContentLoaded", setupChannelSearch);

@@ -7,7 +7,6 @@ import webbrowser
 import threading
 from flask import Flask, send_from_directory
 from backend.routes import bp
-from backend.analysis_routes import analysis_bp
 from backend.config import UPLOAD_FOLDER
 
 
@@ -29,7 +28,6 @@ def create_app():
     app = Flask(__name__)
     app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
     app.register_blueprint(bp)
-    app.register_blueprint(analysis_bp)
 
     web_dir = get_web_path()
 

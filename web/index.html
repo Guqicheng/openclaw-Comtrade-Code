@@ -9,85 +9,21 @@
 </head>
 <body>
 
-<button id="toggleSidebar">☰</button>
 <div id="app">
 
-
-  <!-- 左侧边栏 -->
-  <div id="sidebar">
-    <!-- 上传区域 -->
-    <div class="panel">
-      <h3>上传文件</h3>
-      <input type="file" id="cfgFile" accept=".cfg"><br>
-      <input type="file" id="datFile" accept=".dat"><br>
-      <button onclick="uploadFiles()">上传</button>
+  <!-- ===== 顶部工具栏 ===== -->
+  <div id="topBar">
+    <div class="toolbar-left">
+      <button id="toggleSidebar" title="切换侧边栏">☰</button>
+      <span class="toolbar-title">COMTRADE Viewer</span>
     </div>
-
-    <!-- 元信息（可折叠+滚动条） -->
-    <div class="panel collapsible">
-      <h3 onclick="togglePanel(this)">元信息 ▼</h3>
-      <div class="panel-content scrollable" id="metadata">
-        <!-- 元信息内容由JS填充 -->
-      </div>
-    </div>
-
-    <!-- 通道选择 -->
-    <div class="panel collapsible">
-      <h3 onclick="togglePanel(this)">通道选择 ▼</h3>
-       
-      <div class="panel-content">
-
-        <div class="channel-top">
-          <input type="text" id="channelSearch" placeholder="搜索通道...">
-          <div class="channel-buttons">
-            <button onclick="selectAllChannels(true)">全选</button>
-            <button onclick="selectAllChannels(false)">全不选</button>
-            <button onclick="applySelectedChannels()">应用选择</button>
-          </div>
-        </div>
-
-
-        <div class="sub-panel collapsible">
-          <h4 onclick="togglePanel(this)">模拟通道（Analog） ▼</h4>
-          <!--  模拟通道分组按钮 -->
-            <div class="sub-buttons">
-              <button onclick="selectAnalogChannels(true)">全选</button>
-              <button onclick="selectAnalogChannels(false)">全不选</button>
-            </div>
-          <div id="analogChannelList" class="panel-content sub-list"></div>
-        </div>
-
-        <div class="sub-panel collapsible">
-          <h4 onclick="togglePanel(this)">数字通道（Digital） ▼</h4>
-            <!--  数字通道分组按钮 -->
-            <div class="sub-buttons">
-              <button onclick="selectDigitalChannels(true)">全选</button>
-              <button onclick="selectDigitalChannels(false)">全不选</button>
-            </div>
-          <div id="digitalChannelList" class="panel-content sub-list"></div>
-        </div>
-
-      </div>
-    </div>
-  </div>
-
-  <!-- 新加的 -->
-
-  <div id="sidebarOverlay"></div>
-
-
-  <!-- 主体内容区 -->
-  <div id="main">
-    <!-- 悬浮控制面板 -->
-    <div id="controlPanel">
-      <!-- ===== 修改：添加放大缩小控制 ===== -->
+    <div class="toolbar-center">
       <div class="zoom-controls">
-        <button onclick="zoomOut()" title="缩小视图">-</button>
-        <button onclick="resetZoom()">重置缩放</button>
-        <button onclick="zoomIn()" title="放大视图">+</button>
+        <button onclick="zoomOut()" title="缩小">−</button>
+        <button onclick="resetZoom()">适应</button>
+        <button onclick="zoomIn()" title="放大">+</button>
       </div>
-
-      <!-- 每页子图数量选择 -->
+      <div class="toolbar-divider"></div>
       <div class="page-size-selector">
         <button id="pageSizeBtn" onclick="togglePageSizeMenu()">每页 5 个 ▾</button>
         <ul id="pageSizeMenu" class="hidden">
@@ -96,27 +32,171 @@
           <li data-size="5">5 个</li>
         </ul>
       </div>
+      <div class="toolbar-divider"></div>
+      <div class="cursor-tools">
+        <button id="cursorToggleBtn" onclick="toggleCursorMode()">参考线</button>
+        <button id="dualCursorBtn">双光标</button>
+      </div>
+    </div>
+  </div>
 
-      <!-- 参考线开关 -->
-      <button id="cursorToggleBtn" onclick="toggleCursorMode()" class="cursor-btn">
-        参考线：关
-      </button>
+  <!-- ===== 主体区域 ===== -->
+  <div id="mainBody">
+
+    <!-- 左侧边栏 -->
+    <div id="sidebar">
+      <!-- 上传 -->
+      <div class="sidebar-section">
+        <div class="section-header" onclick="togglePanel(this)">
+          <span>上传文件</span>
+          <span class="arrow">▼</span>
+        </div>
+        <div class="section-body">
+          <div class="upload-row">
+            <input type="file" id="cfgFile" accept=".cfg" class="file-input">
+            <label for="cfgFile" class="file-label">.CFG</label>
+          </div>
+          <div class="upload-row">
+            <input type="file" id="datFile" accept=".dat" class="file-input">
+            <label for="datFile" class="file-label">.DAT</label>
+          </div>
+          <button onclick="uploadFiles()" class="upload-btn">上传并解析</button>
+        </div>
+      </div>
+
+      <!-- 元信息 -->
+      <div class="sidebar-section collapsed">
+        <div class="section-header" onclick="togglePanel(this)">
+          <span>元信息</span>
+          <span class="arrow">▼</span>
+        </div>
+        <div class="section-body" id="metadata">
+          <span class="hint-text">上传文件后显示</span>
+        </div>
+      </div>
+
+      <!-- 通道选择（默认展开） -->
+      <div class="sidebar-section">
+        <div class="section-header" onclick="togglePanel(this)">
+          <span>通道选择</span>
+          <span class="arrow">▼</span>
+        </div>
+        <div class="section-body">
+          <input type="text" id="channelSearch" placeholder="搜索通道..." class="search-input">
+          <div class="ch-action-bar">
+            <button onclick="selectAllChannels(true)">全选</button>
+            <button onclick="selectAllChannels(false)">清空</button>
+            <button onclick="applySelectedChannels()" class="btn-primary">应用</button>
+          </div>
+          <div class="ch-group">
+            <div class="ch-group-header" onclick="togglePanel(this)">
+              <span>模拟通道</span>
+              <span class="badge" id="analogCount">0</span>
+              <span class="arrow">▼</span>
+            </div>
+            <div class="ch-group-body" id="analogChannelList"></div>
+          </div>
+          <div class="ch-group">
+            <div class="ch-group-header" onclick="togglePanel(this)">
+              <span>数字通道</span>
+              <span class="badge" id="digitalCount">0</span>
+              <span class="arrow">▼</span>
+            </div>
+            <div class="ch-group-body" id="digitalChannelList"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 测量工具 -->
+      <div class="sidebar-section">
+        <div class="section-header" onclick="togglePanel(this)">
+          <span>测量工具</span>
+          <span class="arrow">▼</span>
+        </div>
+        <div class="section-body">
+          <!-- RMS -->
+          <div class="tool-row">
+            <select id="rmsChannelSelect" class="tool-select"></select>
+            <button onclick="calculateChannelRMS(document.getElementById('rmsChannelSelect').value)" class="tool-btn">RMS</button>
+          </div>
+          <!-- 峰值 -->
+          <div class="tool-row">
+            <select id="peakChannelSelect" class="tool-select"></select>
+            <button onclick="detectChannelPeaks(document.getElementById('peakChannelSelect').value)" class="tool-btn">峰值</button>
+          </div>
+          <!-- FFT -->
+          <div class="tool-row">
+            <select id="fftChannelSelect" class="tool-select"></select>
+            <button onclick="performFFTAnalysis(document.getElementById('fftChannelSelect').value)" class="tool-btn">FFT</button>
+          </div>
+          <!-- 相角差 -->
+          <div class="tool-row">
+            <select id="phaseDiffChannelA" class="tool-select" style="width:48%"></select>
+            <select id="phaseDiffChannelB" class="tool-select" style="width:48%"></select>
+            <button onclick="calculatePhaseDiff(
+              document.getElementById('phaseDiffChannelA').value,
+              document.getElementById('phaseDiffChannelB').value
+            )" class="tool-btn" style="width:100%;margin-top:3px">相角差</button>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <!-- 波形图容器 -->
-    <div id="plots"></div>
+    <!-- 右侧波形区 -->
+    <div id="content">
+      <div id="plots">
+        <div class="placeholder">
+          <div class="placeholder-icon">📊</div>
+          <div class="placeholder-text">上传 .cfg + .dat 文件开始分析</div>
+          <div class="placeholder-sub">支持 COMTRADE 1991 / 1999 / 2013 格式</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ===== 底部状态栏 ===== -->
+  <div id="statusBar">
+    <span id="statusFile">未加载文件</span>
+    <span class="status-divider">|</span>
+    <span id="statusCursor">光标: —</span>
+    <span class="status-divider">|</span>
+    <span id="statusInfo">就绪</span>
+  </div>
+</div>
+
+<!-- 遮罩层 -->
+<div id="sidebarOverlay"></div>
+
+<!-- 浮动结果面板 -->
+<div id="floatingResults">
+  <div class="floating-header">
+    <span id="floatingTitle">分析结果</span>
+    <button class="floating-close" onclick="closeFloatingResults()">×</button>
+  </div>
+  <div class="floating-body" id="floatingBody"></div>
+</div>
+
+<!-- FFT 模态框 -->
+<div id="fftModal" class="modal-overlay" style="display:none;">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>频谱分析</h3>
+      <button id="fftModalClose" class="modal-close">×</button>
+    </div>
+    <div id="fftPlot" class="modal-plot"></div>
+    <div id="fftHarmonics" class="modal-harmonics"></div>
   </div>
 </div>
 
 <script src="channelControls.js"></script>
 <script src="main.js"></script>
-
+<script src="measurementTools.js"></script>
 
 <script>
-  // 折叠/展开逻辑
   function togglePanel(header) {
-    const panel = header.parentElement;
-    panel.classList.toggle("collapsed");
+    const section = header.parentElement;
+    section.classList.toggle("collapsed");
   }
 </script>
 

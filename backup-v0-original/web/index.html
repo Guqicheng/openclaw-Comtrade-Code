@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>COMTRADE Viewer</title>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<button id="toggleSidebar">☰</button>
+<div id="app">
+
+
+  <!-- 左侧边栏 -->
+  <div id="sidebar">
+    <!-- 上传区域 -->
+    <div class="panel">
+      <h3>上传文件</h3>
+      <input type="file" id="cfgFile" accept=".cfg"><br>
+      <input type="file" id="datFile" accept=".dat"><br>
+      <button onclick="uploadFiles()">上传</button>
+    </div>
+
+    <!-- 元信息（可折叠+滚动条） -->
+    <div class="panel collapsible">
+      <h3 onclick="togglePanel(this)">元信息 ▼</h3>
+      <div class="panel-content scrollable" id="metadata">
+        <!-- 元信息内容由JS填充 -->
+      </div>
+    </div>
+
+    <!-- 通道选择 -->
+    <div class="panel collapsible">
+      <h3 onclick="togglePanel(this)">通道选择 ▼</h3>
+
+      <div class="panel-content">
+
+        <div class="channel-top">
+          <input type="text" id="channelSearch" placeholder="搜索通道...">
+          <div class="channel-buttons">
+            <button onclick="selectAllChannels(true)">全选</button>
+            <button onclick="selectAllChannels(false)">全不选</button>
+            <button onclick="applySelectedChannels()">应用选择</button>
+          </div>
+        </div>
+
+
+        <div class="sub-panel collapsible">
+          <h4 onclick="togglePanel(this)">模拟通道（Analog） ▼</h4>
+          <!--  模拟通道分组按钮 -->
+            <div class="sub-buttons">
+              <button onclick="selectAnalogChannels(true)">全选</button>
+              <button onclick="selectAnalogChannels(false)">全不选</button>
+            </div>
+          <div id="analogChannelList" class="panel-content sub-list"></div>
+        </div>
+
+        <div class="sub-panel collapsible">
+          <h4 onclick="togglePanel(this)">数字通道（Digital） ▼</h4>
+            <!--  数字通道分组按钮 -->
+            <div class="sub-buttons">
+              <button onclick="selectDigitalChannels(true)">全选</button>
+              <button onclick="selectDigitalChannels(false)">全不选</button>
+            </div>
+          <div id="digitalChannelList" class="panel-content sub-list"></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- 新加的 -->
+
+  <div id="sidebarOverlay"></div>
+
+
+  <!-- 主体内容区 -->
+  <div id="main">
+    <!-- 悬浮控制面板 -->
+    <div id="controlPanel">
+      <!-- ===== 修改：添加放大缩小控制 ===== -->
+      <div class="zoom-controls">
+        <button onclick="zoomOut()" title="缩小视图">-</button>
+        <button onclick="resetZoom()">重置缩放</button>
+        <button onclick="zoomIn()" title="放大视图">+</button>
+      </div>
+
+      <!-- 每页子图数量选择 -->
+      <div class="page-size-selector">
+        <button id="pageSizeBtn" onclick="togglePageSizeMenu()">每页 5 个 ▾</button>
+        <ul id="pageSizeMenu" class="hidden">
+          <li data-size="3">3 个</li>
+          <li data-size="4">4 个</li>
+          <li data-size="5">5 个</li>
+        </ul>
+      </div>
+
+      <!-- 参考线开关 -->
+      <button id="cursorToggleBtn" onclick="toggleCursorMode()" class="cursor-btn">
+        参考线：关
+      </button>
+    </div>
+
+    <!-- 波形图容器 -->
+    <div id="plots"></div>
+  </div>
+</div>
+
+<script src="channelControls.js"></script>
+<script src="main.js"></script>
+
+
+<script>
+  // 折叠/展开逻辑
+  function togglePanel(header) {
+    const panel = header.parentElement;
+    panel.classList.toggle("collapsed");
+  }
+</script>
+
+</body>
+</html>
