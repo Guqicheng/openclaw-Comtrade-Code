@@ -945,19 +945,29 @@ class Comtrade:
             # --- 加载 DAT ---
             try:
                 self._load_dat(dat_file)
-            except Exception as e:
-                if "buffer of a multiple of" in str(e) or "unpack requires a buffer" in str(e):
-                    warnings.warn("[AutoFix] DAT 数据损坏，最后一帧不完整，尝试自动忽略尾帧继续解析")
-                    with open(dat_file, "rb") as f:
-                        raw = f.read()
-                    valid_len = (len(raw) // frame_size) * frame_size
-                    raw = raw[:valid_len]
-                    # 重建读取器
-                    reader = self._get_dat_reader()
-                    reader.load_from_bytes(raw, self._cfg)
-                    self._dat_extract_data(reader)
-                else:
-                    raise
+            except (struct.error, ValueError, IndexError) as e:
+                # struct.error: 二进制数据长度不匹配格式（不依赖错误消息文字）
+                # ValueError/IndexError: ASCII 数据行格式异常
+                warnings.warn(f"[AutoFix] DAT 数据损坏 ({type(e).__name__})，尝试自动忽略尾帧继续解析")
+                # 重新计算帧大小（兼容 BINARY / BINARY32 两种格式）
+                analog_count = self._cfg.analog_count
+                status_count = self._cfg.status_count
+                status_bytes = 2 * math.ceil(status_count / 16)
+                for analog_bytes in [2, 4]:  # 先试BINARY(2字节), 再试BINARY32(4字节)
+                    fsize = 4 + 4 + analog_count * analog_bytes + status_bytes
+                    if fsize > 0:
+                        break
+                if fsize <= 0:
+                    raise ComtradeError("无法计算 DAT 帧大小，文件可能已损坏")
+                with open(dat_file, "rb") as f:
+                    raw = f.read()
+                valid_len = (len(raw) // fsize) * fsize
+                if valid_len == 0:
+                    raise ComtradeError(f"DAT 文件过小 ({len(raw)} 字节)，无法解析") from e
+                raw = raw[:valid_len]
+                reader = self._get_dat_reader()
+                reader.load_from_bytes(raw, self._cfg)
+                self._dat_extract_data(reader)
 
             self._load_inf(inf_file, **file_kwargs)
             self._load_hdr(hdr_file, **file_kwargs)
@@ -1392,15 +1402,9 @@ class _BinaryDatReader(_DatReader):
         替代从文件读取的方式，从内存中的 bytes 加载 DAT 数据。
         用于处理残缺帧截断后的 DAT 重新加载。
         """
-
-        self.clear()
-        self.file_type = "BINARY32"
-        self.cfg = cfg
-        self.rev_year = cfg.rev_year
-        self._build_struct()
-
-        for unpacked in struct.iter_unpack(self.struct_fmt, raw_bytes):
-            self._append_row(unpacked)
+        self._cfg = cfg
+        self._preallocate()
+        self.parse(raw_bytes)
 
 
     def parse(self, contents):
@@ -1484,16 +1488,9 @@ class _Binary32DatReader(_BinaryDatReader):
         替代从文件读取的方式，从内存中的 bytes 加载 DAT 数据。
         用于处理残缺帧截断后的 DAT 重新加载。
         """
-        import struct
-
-        self.clear() 
-        self.file_type = "BINARY32"
-        self.cfg = cfg
-        self.rev_year = cfg.rev_year
-        self._build_struct()
-
-        for unpacked in struct.iter_unpack(self.struct_fmt, raw_bytes):
-            self._append_row(unpacked)
+        self._cfg = cfg
+        self._preallocate()
+        self.parse(raw_bytes)
 
 
 class _Float32DatReader(_BinaryDatReader):
