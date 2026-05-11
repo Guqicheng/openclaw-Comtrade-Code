@@ -2,3 +2,8 @@ __pycache__/
 *.pyc 
 backup-*/ 
 uploads/ 
+build/ 
+venv/ 
+uploads/ 
+git-*.bat 
+git-*.sh 
