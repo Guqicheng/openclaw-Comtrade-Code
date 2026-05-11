@@ -92,10 +92,10 @@ function selectAnalogAll(select = true) {
 function applyAnalog() {
     if (!currentWaveform) return;
     const analogChecked = Array.from(document.querySelectorAll("#analogChannelList input:checked")).map(cb => cb.value);
-    const digitalSelected = selectedChannels.filter(c =>
-        Object.keys(currentWaveform.digital || {}).includes(c)
-    );
-    selectedChannels = [...analogChecked, ...digitalSelected];
+    // 保留当前已显示的数字通道
+    const digitalKeys = Object.keys(currentWaveform.digital || {});
+    const currentDigital = selectedChannels.filter(c => digitalKeys.includes(c));
+    selectedChannels = [...analogChecked, ...currentDigital];
     renderPlots();
 }
 
@@ -115,11 +115,10 @@ function selectDigitalAll(select = true) {
 
 function applyDigital() {
     if (!currentWaveform) return;
-    const analogSelected = selectedChannels.filter(c =>
-        Object.keys(currentWaveform.analog || {}).includes(c)
-    );
+    const analogKeys = Object.keys(currentWaveform.analog || {});
+    const currentAnalog = selectedChannels.filter(c => analogKeys.includes(c));
     const digitalChecked = Array.from(document.querySelectorAll("#digitalChannelList input:checked")).map(cb => cb.value);
-    selectedChannels = [...analogSelected, ...digitalChecked];
+    selectedChannels = [...currentAnalog, ...digitalChecked];
     renderPlots();
 }
 
