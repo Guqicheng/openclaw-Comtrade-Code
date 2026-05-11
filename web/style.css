@@ -135,10 +135,31 @@ body, html {
   overflow: hidden;
 }
 
+/* ===== 滚动条全局样式 ===== */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: #f0f0f0;
+}
+::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #aaa;
+}
+/* Firefox 滚动条 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #ccc #f0f0f0;
+}
+
 /* ===== 侧边栏 ===== */
 #sidebar {
-  width: 250px;
-  min-width: 250px;
+  width: 280px;
+  min-width: 280px;
   background: #f7f8fc;
   border-right: 1px solid #e0e0e0;
   overflow-y: auto;
@@ -162,10 +183,10 @@ body, html {
 .section-header {
   display: flex;
   align-items: center;
-  padding: 8px 12px;
+  padding: 7px 14px;
   cursor: pointer;
   user-select: none;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   color: #555;
   background: #f7f8fc;
@@ -180,7 +201,7 @@ body, html {
 .sidebar-section.collapsed .arrow { transform: rotate(-90deg); }
 
 .section-body {
-  padding: 6px 12px 10px;
+  padding: 6px 14px 10px;
 }
 
 /* 上传控件 */
@@ -293,9 +314,9 @@ body, html {
 .ch-group-body label {
   display: flex !important;
   align-items: center;
-  gap: 4px;
-  padding: 2px 0;
-  font-size: 12px;
+  gap: 6px;
+  padding: 3px 0;
+  font-size: 13px;
   cursor: pointer;
 }
 .ch-group-body label:hover { color: #409eff; }
@@ -327,18 +348,18 @@ body, html {
 .tool-btn:hover { background: #2c7be5; }
 
 /* 元信息 */
-.hint-text { font-size: 11px; color: #999; font-style: italic; }
+.hint-text { font-size: 12px; color: #999; font-style: italic; }
 .meta-row {
   display: flex;
   justify-content: space-between;
-  padding: 2px 0;
-  font-size: 11px;
+  padding: 3px 0;
+  font-size: 12px;
   border-bottom: 1px solid #f0f0f0;
 }
 .meta-row span:last-child {
   color: #555;
   font-family: monospace;
-  font-size: 10px;
+  font-size: 11px;
   text-align: right;
   max-width: 55%;
   overflow: hidden;

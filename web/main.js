@@ -211,11 +211,11 @@ function createPlotDiv(container, time, values, channelName, isDigital = false) 
 
     const layout = {
         height: getPlotHeight(),
-        margin: { l: 80, r: 15, t: 15, b: 20 },
+        margin: { l: 60, r: 10, t: 6, b: 8 },
         yaxis: {
             title: {
                 text: channelName,
-                standoff: 6,
+                standoff: 2,
                 font: { size: dynamicFontSize }
             },
             range: isDigital ? [-0.5, 1.5] : undefined
