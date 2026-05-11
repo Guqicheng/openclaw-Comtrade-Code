@@ -115,7 +115,8 @@ def calculate_fft(values, sampling_rate):
     n = len(values)
 
     # 应用汉宁窗减少频谱泄漏
-    window = numpy.hanning(n)
+    # numpy.hanning 在旧版本使用，新版本推荐 numpy.hann
+    window = numpy.hann(n)
     windowed_data = numpy.array(values, dtype=float) * window
 
     # FFT
@@ -167,9 +168,15 @@ def calculate_fft(values, sampling_rate):
     harmonic_mags_sq = sum(h["mag"] ** 2 for h in harmonics if h["order"] > 1)
     thd = math.sqrt(harmonic_mags_sq) / fundamental_mag * 100 if fundamental_mag > 0 else 0
 
+    # 限制返回的频率范围（最高返回到 2000Hz，对电力系统谐波分析已经足够）
+    max_return_freq = 2000
+    return_indices = [i for i in range(len(frequencies)) if frequencies[i] <= max_return_freq]
+    if not return_indices:
+        return_indices = list(range(len(frequencies)))
+
     return {
-        "frequencies": [round(float(f), 4) for f in frequencies.tolist()],
-        "magnitudes": [round(float(m), 6) for m in fft_magnitude.tolist()],
+        "frequencies": [round(float(frequencies[i]), 4) for i in return_indices],
+        "magnitudes": [round(float(fft_magnitude[i]), 6) for i in return_indices],
         "fundamentalFreq": round(float(fundamental_freq), 2),
         "fundamentalMag": round(float(fundamental_mag), 6),
         "thd": round(float(thd), 2),
@@ -198,7 +205,7 @@ def calculate_phase_difference(values_a, values_b, sampling_rate, fundamental_fr
             return {"error": "数据点不足"}
 
         # 对两个通道做 FFT 提取基波相位
-        window = numpy.hanning(n)
+        window = numpy.hann(n)
         a_windowed = numpy.array(values_a, dtype=float) * window
         b_windowed = numpy.array(values_b, dtype=float) * window
 

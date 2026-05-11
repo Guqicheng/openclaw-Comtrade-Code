@@ -224,7 +224,7 @@ function createPlotDiv(container, time, values, channelName, isDigital = false) 
             title: null,
             showticklabels: false,
             ticks: "",
-            range: originalXRange.slice()
+            range: originalXRange ? originalXRange.slice() : undefined
         },
         showlegend: false
     };
@@ -312,12 +312,12 @@ function resetZoom() {
 
 function zoomIn() {
     if (!allDivs.length) return;
-    applyZoom(1.5);
+    applyZoom(1 / 1.5);  // 因子<1 → 显示范围变小 → 放大
 }
 
 function zoomOut() {
     if (!allDivs.length) return;
-    applyZoom(1 / 1.5);
+    applyZoom(1.5);       // 因子>1 → 显示范围变大 → 缩小
 }
 
 function applyZoom(factor) {

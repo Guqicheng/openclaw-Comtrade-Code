@@ -1,5 +1,5 @@
 // # ===== frontend/channelControls.js =====
-// 通道选择、搜索、全选/全不选/应用选择
+// 通道选择、搜索、分组控制（模拟/数字独立操作）
 
 function populateChannelList(waveform) {
     currentWaveform = waveform;
@@ -63,7 +63,6 @@ function setupChannelSearch() {
     const searchInput = document.getElementById("channelSearch");
     if (!searchInput) return;
 
-    // 移除旧事件，避免重复绑定
     const newInput = searchInput.cloneNode(true);
     searchInput.parentNode.replaceChild(newInput, searchInput);
 
@@ -76,27 +75,53 @@ function setupChannelSearch() {
     });
 }
 
-// 全选/全不选
-function selectAllChannels(select = true) {
-    document.querySelectorAll("#analogChannelList input, #digitalChannelList input").forEach(cb => {
+// ===== 模拟通道分组控制 =====
+function selectAnalogAll(select = true) {
+    const checkboxes = document.querySelectorAll("#analogChannelList input[type=checkbox]");
+    checkboxes.forEach(cb => {
         cb.checked = select;
+        const name = cb.value;
+        if (select) {
+            if (!selectedChannels.includes(name)) selectedChannels.push(name);
+        } else {
+            selectedChannels = selectedChannels.filter(c => c !== name);
+        }
     });
-
-    if (select) {
-        selectedChannels = [
-            ...Object.keys(currentWaveform.analog),
-            ...Object.keys(currentWaveform.digital || {})
-        ];
-    } else {
-        selectedChannels = [];
-    }
 }
 
-// 应用选择
-function applySelectedChannels() {
+function applyAnalog() {
     if (!currentWaveform) return;
-    selectedChannels = Array.from(
-        document.querySelectorAll("#analogChannelList input:checked, #digitalChannelList input:checked")
-    ).map(cb => cb.value);
+    const analogChecked = Array.from(document.querySelectorAll("#analogChannelList input:checked")).map(cb => cb.value);
+    const digitalSelected = selectedChannels.filter(c =>
+        Object.keys(currentWaveform.digital || {}).includes(c)
+    );
+    selectedChannels = [...analogChecked, ...digitalSelected];
     renderPlots();
 }
+
+// ===== 数字通道分组控制 =====
+function selectDigitalAll(select = true) {
+    const checkboxes = document.querySelectorAll("#digitalChannelList input[type=checkbox]");
+    checkboxes.forEach(cb => {
+        cb.checked = select;
+        const name = cb.value;
+        if (select) {
+            if (!selectedChannels.includes(name)) selectedChannels.push(name);
+        } else {
+            selectedChannels = selectedChannels.filter(c => c !== name);
+        }
+    });
+}
+
+function applyDigital() {
+    if (!currentWaveform) return;
+    const analogSelected = selectedChannels.filter(c =>
+        Object.keys(currentWaveform.analog || {}).includes(c)
+    );
+    const digitalChecked = Array.from(document.querySelectorAll("#digitalChannelList input:checked")).map(cb => cb.value);
+    selectedChannels = [...analogSelected, ...digitalChecked];
+    renderPlots();
+}
+
+// 页面初始化时调用
+document.addEventListener("DOMContentLoaded", setupChannelSearch);

@@ -83,16 +83,16 @@
         </div>
         <div class="section-body">
           <input type="text" id="channelSearch" placeholder="搜索通道..." class="search-input">
-          <div class="ch-action-bar">
-            <button onclick="selectAllChannels(true)">全选</button>
-            <button onclick="selectAllChannels(false)">清空</button>
-            <button onclick="applySelectedChannels()" class="btn-primary">应用</button>
-          </div>
           <div class="ch-group">
             <div class="ch-group-header" onclick="togglePanel(this)">
               <span>模拟通道</span>
               <span class="badge" id="analogCount">0</span>
               <span class="arrow">▼</span>
+            </div>
+            <div class="ch-action-bar">
+              <button onclick="selectAnalogAll(true)">全选</button>
+              <button onclick="selectAnalogAll(false)">清空</button>
+              <button onclick="applyAnalog()" class="btn-primary">应用</button>
             </div>
             <div class="ch-group-body" id="analogChannelList"></div>
           </div>
@@ -101,6 +101,11 @@
               <span>数字通道</span>
               <span class="badge" id="digitalCount">0</span>
               <span class="arrow">▼</span>
+            </div>
+            <div class="ch-action-bar">
+              <button onclick="selectDigitalAll(true)">全选</button>
+              <button onclick="selectDigitalAll(false)">清空</button>
+              <button onclick="applyDigital()" class="btn-primary">应用</button>
             </div>
             <div class="ch-group-body" id="digitalChannelList"></div>
           </div>
