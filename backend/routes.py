@@ -3,12 +3,36 @@
 
 from flask import Blueprint, request, jsonify, current_app
 from .services import save_files, process_comtrade_files
-from .analysis_routes import set_current_files
+from .analysis_routes import set_current_reader
 from comtrade_parser.parser import parse_metadata
 import os
-
+import math
 
 bp = Blueprint('routes', __name__)
+
+# 波形数据最大点数（以 2K 屏 2560px 为基准，留 3 倍余量保证曲线平滑）
+# 超过此值自动降采样，加快传输和前端渲染
+MAX_DISPLAY_POINTS = 8000
+
+
+def downsample(values, max_points):
+    """
+    降采样：如果数据超过 max_points，均匀抽取保留波形趋势。
+    返回降采样后的列表。
+    """
+    n = len(values)
+    if n <= max_points:
+        return list(values)
+
+    step = n / max_points
+    result = []
+    for i in range(max_points):
+        idx = int(i * step)
+        if idx >= n:
+            idx = n - 1
+        result.append(values[idx])
+    return result
+
 
 @bp.route('/upload', methods=['POST'])
 def upload():
@@ -35,36 +59,33 @@ def upload():
         cfg_file.save(cfg_path)
         dat_file.save(dat_path)
 
-        # 解析 COMTRADE
-        # =============== 新增：解析 COMTRADE ==================
-        # 解析 metadata + reader（不包含 waveform）
+        # ===== 只解析一次 =====
         reader, metadata = parse_metadata(cfg_path, dat_path)
-        # ========================================================
+        set_current_reader(reader)  # 直接传 reader，不再二次解析
 
-        # =============== 新增：构造模拟通道 analog ===============
+        # ===== 构造波形数据（带降采样）=====
+        raw_time = list(reader.time)
+        n = len(raw_time)
+
+        # 是否需要降采样
+        need_downsample = n > MAX_DISPLAY_POINTS
+        ds = downsample if need_downsample else (lambda v, _: list(v))
+
+        time = ds(raw_time, MAX_DISPLAY_POINTS)
+
         analog = {}
         for i, ch in enumerate(reader.cfg.analog_channels):
-            analog[ch.name] = list(reader.analog[i])  # 转列表便于前端 JSON
-        # ========================================================
+            analog[ch.name] = ds(reader.analog[i], MAX_DISPLAY_POINTS)
 
-        # =============== 新增：构造数字通道 digital ===============
         digital = {}
         for i, ch in enumerate(reader.cfg.status_channels):
-            digital[ch.name] = list(reader.status[i])
-        # ========================================================
+            digital[ch.name] = ds(reader.status[i], MAX_DISPLAY_POINTS)
 
-
-        # =============== 新增：统一构造 waveform 字典 ==============
         waveform = {
-            "time": list(reader.time),      # 时间轴
-            "analog": analog,         # 模拟通道
-            "digital": digital        # 数字通道（你缺失的部分）
+            "time": time,
+            "analog": analog,
+            "digital": digital
         }
-        # ========================================================
-
-        # =============== 新增：通知分析模块加载当前文件 ==============
-        set_current_files(cfg_path, dat_path)
-        # ========================================================
 
         return jsonify({
             "metadata": metadata,
@@ -72,5 +93,4 @@ def upload():
         })
 
     except Exception as e:
-        # 捕获所有异常并返回前端
         return jsonify({"error": str(e)}), 500
