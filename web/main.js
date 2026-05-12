@@ -251,11 +251,13 @@ function createPlotDiv(container, time, values, channelName, isDigital = false) 
             }, RELAYOUT_DEBOUNCE_MS);
         });
 
-        // 右键标志，防止右键触发 plotly_click 导致与左键冲突
-        let _isRightClick = false;
-
         div.on("plotly_click", (event) => {
-            if (_isRightClick) { _isRightClick = false; return; }
+            // 跳过右键（检查原始鼠标事件）
+            const src = event && event.event;
+            if (src) {
+                const btn = src.which !== undefined ? src.which : src.button;
+                if (btn === 3 || btn === 2) return;
+            }
             if (!event.points || !event.points.length) return;
             if (typeof isDualCursorMode !== 'undefined' && isDualCursorMode) {
                 handleDualCursorClick(event, 'C1');
@@ -265,15 +267,12 @@ function createPlotDiv(container, time, values, channelName, isDigital = false) 
         div.addEventListener("contextmenu", (e) => {
             if (typeof isDualCursorMode === 'undefined' || !isDualCursorMode) return;
             e.preventDefault();
-            _isRightClick = true;
             const layout = div._fullLayout;
             if (!layout) return;
-            const xaxis = layout.xaxis;
-            const yaxis = layout.yaxis;
             const rect = div.getBoundingClientRect();
-            const xVal = xaxis.p2d(e.clientX - rect.left);
-            const yVal = yaxis.p2d(e.clientY - rect.top);
-            handleDualCursorClick({ points: [{ x: xVal, y: yVal }] }, 'C2');
+            const xData = layout.xaxis.p2d(e.clientX - rect.left);
+            const yData = layout.yaxis.p2d(e.clientY - rect.top);
+            handleDualCursorClick({ points: [{ x: xData, y: yData }] }, 'C2');
         });
 
         allDivs.push(div);
