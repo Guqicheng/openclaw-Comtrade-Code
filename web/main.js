@@ -9,9 +9,6 @@ let selectedChannels = [];
 
 let visibleCount = 5;
 
-let globalCursorX = null;
-let isCursorModeEnabled = false;
-
 let pendingRelayout = null;
 let plotCreationCounter = { total: 0, completed: 0 };
 
@@ -175,9 +172,6 @@ function renderPlots() {
                     Plotly.relayout(div, { 'xaxis.range': currentXRange });
                 }
             });
-            if (isCursorModeEnabled && globalCursorX !== null) {
-                setTimeout(() => applyGlobalCursorLine(globalCursorX), 50);
-            }
         };
     }
 }
@@ -253,28 +247,33 @@ function createPlotDiv(container, time, values, channelName, isDigital = false) 
                 isSyncing = true;
                 Promise.all(allDivs.map(d => d !== div ? Plotly.relayout(d, update) : Promise.resolve())).then(() => {
                     isSyncing = false;
-                    if (isCursorModeEnabled && globalCursorX !== null) {
-                        requestAnimationFrame(() => applyGlobalCursorLine(globalCursorX));
-                    }
                 });
             }, RELAYOUT_DEBOUNCE_MS);
         });
 
+        // 右键标志，防止右键触发 plotly_click 导致与左键冲突
+        let _isRightClick = false;
+
         div.on("plotly_click", (event) => {
+            if (_isRightClick) { _isRightClick = false; return; }
             if (!event.points || !event.points.length) return;
-
-            // 双光标优先
             if (typeof isDualCursorMode !== 'undefined' && isDualCursorMode) {
-                handleDualCursorClick(event);
-                return;
+                handleDualCursorClick(event, 'C1');
             }
+        });
 
-            if (!isCursorModeEnabled) return;
-            const xValue = event.points[0].x;
-            const yValue = event.points[0].y;
-            globalCursorX = xValue;
-            applyGlobalCursorLine(xValue);
-            updateCursorStatus(xValue, yValue);
+        div.addEventListener("contextmenu", (e) => {
+            if (typeof isDualCursorMode === 'undefined' || !isDualCursorMode) return;
+            e.preventDefault();
+            _isRightClick = true;
+            const layout = div._fullLayout;
+            if (!layout) return;
+            const xaxis = layout.xaxis;
+            const yaxis = layout.yaxis;
+            const rect = div.getBoundingClientRect();
+            const xVal = xaxis.p2d(e.clientX - rect.left);
+            const yVal = yaxis.p2d(e.clientY - rect.top);
+            handleDualCursorClick({ points: [{ x: xVal, y: yVal }] }, 'C2');
         });
 
         allDivs.push(div);
@@ -305,9 +304,6 @@ function resetZoom() {
         Plotly.relayout(div, update);
     });
     isSyncing = false;
-    if (isCursorModeEnabled && globalCursorX !== null) {
-        setTimeout(() => applyGlobalCursorLine(globalCursorX), 50);
-    }
 }
 
 function zoomIn() {
@@ -349,63 +345,7 @@ function applyZoom(factor) {
     isSyncing = true;
     Promise.all(allDivs.map(div => Plotly.relayout(div, { 'xaxis.range': newRange }))).then(() => {
         isSyncing = false;
-        if (isCursorModeEnabled && globalCursorX !== null) {
-            setTimeout(() => applyGlobalCursorLine(globalCursorX), 50);
-        }
     });
-}
-
-
-// ===================== 参考线模式 =====================
-function toggleCursorMode() {
-    isCursorModeEnabled = !isCursorModeEnabled;
-    const btn = document.getElementById("cursorToggleBtn");
-    if (!btn) return;
-    btn.classList.toggle("active");
-
-    if (!isCursorModeEnabled) {
-        globalCursorX = null;
-        allDivs.forEach(div => {
-            if (div && div.layout) Plotly.relayout(div, { shapes: [], annotations: [] });
-        });
-        updateCursorStatus(null, null);
-    }
-}
-
-function applyGlobalCursorLine(xValue) {
-    const updates = allDivs.map(div => {
-        if (!div || !div.data || !div.data[0]) return Promise.resolve();
-        const trace = div.data[0];
-        const time = trace.x;
-        const values = trace.y;
-        const yValue = getYValueAtX(time, values, xValue);
-
-        return Plotly.relayout(div, {
-            shapes: [{
-                type: "line", x0: xValue, x1: xValue, y0: 0, y1: 1,
-                xref: "x", yref: "paper",
-                line: { color: "red", width: 1, dash: "dot" }
-            }],
-            annotations: [{
-                x: xValue, y: 1, xref: "x", yref: "y domain",
-                text: ` x:${xValue.toFixed(6)}<br> y:${yValue.toFixed(4)} `,
-                showarrow: false, yanchor: "bottom",
-                bgcolor: "rgba(255,255,255,0.85)", bordercolor: "red", borderwidth: 1,
-                font: { size: 9 }, align: "left"
-            }]
-        });
-    });
-    return Promise.all(updates);
-}
-
-function updateCursorStatus(x, y) {
-    const el = document.getElementById("statusCursor");
-    if (!el) return;
-    if (x === null) {
-        el.textContent = "光标: —";
-    } else {
-        el.textContent = `光标: t=${x.toFixed(6)}s  y=${y ? y.toFixed(4) : '—'}`;
-    }
 }
 
 
@@ -501,9 +441,6 @@ document.addEventListener("DOMContentLoaded", () => {
         window.resizeTimer = setTimeout(() => {
             if (allDivs.length > 0) {
                 stabilizeLayout();
-                if (isCursorModeEnabled && globalCursorX !== null) {
-                    applyGlobalCursorLine(globalCursorX);
-                }
             }
         }, 250);
     });
