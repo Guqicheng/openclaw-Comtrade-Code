@@ -14,13 +14,18 @@ _current_cfg_path = None
 _current_dat_path = None
 
 
+def set_current_reader(reader):
+    """直接设置已解析好的 reader 对象（避免二次解析）"""
+    global _current_reader
+    _current_reader = reader
+
 def set_current_files(cfg_path, dat_path):
-    """设置当前分析的 Comtrade 文件路径"""
+    """通过文件路径解析并设置 reader（备用，优先用 set_current_reader）"""
     global _current_cfg_path, _current_dat_path, _current_reader
     _current_cfg_path = cfg_path
     _current_dat_path = dat_path
-    reader, _ = parse_metadata(cfg_path, dat_path)
-    _current_reader = reader
+    r, _ = parse_metadata(cfg_path, dat_path)
+    _current_reader = r
 
 
 @analysis_bp.route('/analysis/load', methods=['POST'])

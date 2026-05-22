@@ -6,7 +6,6 @@
 let isDualCursorMode = false;
 let cursor1 = null;
 let cursor2 = null;
-let cursorPhase = 1;
 
 function toggleDualCursorMode() {
     isDualCursorMode = !isDualCursorMode;
@@ -15,36 +14,41 @@ function toggleDualCursorMode() {
     btn.classList.toggle("active");
 
     if (isDualCursorMode) {
-        cursor1 = null; cursor2 = null; cursorPhase = 1;
-        showFloatingResults("双光标", '<span class="measure-hint">点击波形放置光标 C1</span>');
+        cursor1 = null; cursor2 = null;
+        showFloatingResults("双光标", '<span class="measure-hint">左键放 C1，右键放 C2</span>');
+        allDivs.forEach(div => { try { Plotly.relayout(div, { dragmode: 'pan' }); } catch(e) {} });
     } else {
         clearDualCursors();
         closeFloatingResults();
+        allDivs.forEach(div => { try { Plotly.relayout(div, { dragmode: 'zoom' }); } catch(e) {} });
     }
 }
 
 function clearDualCursors() {
-    cursor1 = null; cursor2 = null; cursorPhase = 1;
+    cursor1 = null; cursor2 = null;
     allDivs.forEach(div => {
         if (div && div.layout) Plotly.relayout(div, { shapes: [], annotations: [] });
     });
 }
 
-function handleDualCursorClick(event) {
+function handleDualCursorClick(event, cursorType) {
     if (!isDualCursorMode) return;
     if (!event.points || !event.points.length) return;
 
     const xValue = event.points[0].x;
     const yValue = event.points[0].y;
 
-    if (cursorPhase === 1) {
+    if (cursorType === 'C1') {
         cursor1 = { x: xValue, y: yValue };
-        cursorPhase = 2;
-        showFloatingResults("双光标", '<span class="measure-hint">已放置 C1，请点击放置光标 C2</span>');
     } else {
         cursor2 = { x: xValue, y: yValue };
-        cursorPhase = 1;
+    }
+
+    if (cursor1 && cursor2) {
         updateDualCursorDisplay();
+    } else {
+        const hint = cursor1 ? 'C1 已放置，右键放 C2' : 'C2 已放置，左键放 C1';
+        showFloatingResults("双光标", `<span class="measure-hint">${hint}</span>`);
     }
     drawDualCursors();
 }
@@ -61,12 +65,12 @@ function drawDualCursors() {
         if (cursor1) {
             const y1 = getYValueAtX(time, values, cursor1.x);
             shapes.push({ type: "line", x0: cursor1.x, x1: cursor1.x, y0: 0, y1: 1, xref: "x", yref: "paper", line: { color: "#e74c3c", width: 1.5 } });
-            annotations.push({ x: cursor1.x, y: 1, xref: "x", yref: "y domain", text: `C1<br>t:${cursor1.x.toFixed(6)}<br>y:${y1.toFixed(4)}`, showarrow: false, yanchor: "bottom", bgcolor: "rgba(231,76,60,0.85)", bordercolor: "#e74c3c", borderwidth: 1, font: { size: 8, color: "white" }, align: "left" });
+            annotations.push({ x: cursor1.x, y: 1, xref: "x", yref: "y domain", text: `C1 t:${cursor1.x.toFixed(4)}s<br>y:${y1.toFixed(4)}`, showarrow: false, yanchor: "bottom", bgcolor: "rgba(231,76,60,0.85)", bordercolor: "#e74c3c", borderwidth: 1, font: { size: 9, color: "white" }, align: "left" });
         }
         if (cursor2) {
             const y2 = getYValueAtX(time, values, cursor2.x);
             shapes.push({ type: "line", x0: cursor2.x, x1: cursor2.x, y0: 0, y1: 1, xref: "x", yref: "paper", line: { color: "#2980b9", width: 1.5 } });
-            annotations.push({ x: cursor2.x, y: 1, xref: "x", yref: "y domain", text: `C2<br>t:${cursor2.x.toFixed(6)}<br>y:${y2.toFixed(4)}`, showarrow: false, yanchor: "bottom", bgcolor: "rgba(41,128,185,0.85)", bordercolor: "#2980b9", borderwidth: 1, font: { size: 8, color: "white" }, align: "left" });
+            annotations.push({ x: cursor2.x, y: 1, xref: "x", yref: "y domain", text: `C2 t:${cursor2.x.toFixed(4)}s<br>y:${y2.toFixed(4)}`, showarrow: false, yanchor: "bottom", bgcolor: "rgba(41,128,185,0.85)", bordercolor: "#2980b9", borderwidth: 1, font: { size: 9, color: "white" }, align: "left" });
         }
         Plotly.relayout(div, { shapes, annotations });
     });
@@ -75,7 +79,15 @@ function drawDualCursors() {
 function updateDualCursorDisplay() {
     if (!cursor1 || !cursor2) return;
     const dt = cursor2.x - cursor1.x;
-    const dy = cursor2.y - cursor1.y;
+    // 从第一个子图的实际数据获取 y（保证与标注框一致）
+    let y1 = cursor1.y, y2 = cursor2.y;
+    const first = allDivs.find(d => d && d.data && d.data[0]);
+    if (first) {
+        const t = first.data[0].x, v = first.data[0].y;
+        y1 = getYValueAtX(t, v, cursor1.x);
+        y2 = getYValueAtX(t, v, cursor2.x);
+    }
+    const dy = y2 - y1;
     const freq = dt !== 0 ? Math.abs(1.0 / dt) : 0;
 
     const html = `

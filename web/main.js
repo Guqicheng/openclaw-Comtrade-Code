@@ -17,7 +17,7 @@ function getPlotHeight() {
     const container = document.getElementById("content");
     if (!container) return 200;
     const h = container.clientHeight;
-    return Math.max(100, Math.floor(h / visibleCount));
+    return Math.max(80, Math.floor(h / visibleCount) - 2);
 }
 
 function togglePageSizeMenu() {
@@ -205,7 +205,7 @@ function createPlotDiv(container, time, values, channelName, isDigital = false) 
 
     const layout = {
         height: getPlotHeight(),
-        margin: { l: 60, r: 10, t: 6, b: 8 },
+        margin: { l: 55, r: 8, t: 22, b: 4 },
         yaxis: {
             title: {
                 text: channelName,
@@ -228,12 +228,19 @@ function createPlotDiv(container, time, values, channelName, isDigital = false) 
         displayModeBar: false,
         doubleClick: false
     }).then(() => {
+        let _rightClickZoom = false;
+
         div.on('plotly_relayout', (eventData) => {
             if (eventData['shapes'] !== undefined || eventData['annotations'] !== undefined) return;
             if (isSyncing) return;
-
+            if (_rightClickZoom) {
+                _rightClickZoom = false;
+                if (originalXRange && eventData['xaxis.range[0]'] !== undefined) {
+                    Plotly.relayout(div, { 'xaxis.range': originalXRange.slice() });
+                }
+                return;
+            }
             if (pendingRelayout) clearTimeout(pendingRelayout);
-
             pendingRelayout = setTimeout(() => {
                 const update = {};
                 if ('xaxis.range[0]' in eventData && 'xaxis.range[1]' in eventData) {
@@ -243,7 +250,6 @@ function createPlotDiv(container, time, values, channelName, isDigital = false) 
                     update['yaxis.range'] = [eventData['yaxis.range[0]'], eventData['yaxis.range[1]']];
                 }
                 if (Object.keys(update).length === 0) return;
-
                 isSyncing = true;
                 Promise.all(allDivs.map(d => d !== div ? Plotly.relayout(d, update) : Promise.resolve())).then(() => {
                     isSyncing = false;
@@ -252,27 +258,39 @@ function createPlotDiv(container, time, values, channelName, isDigital = false) 
         });
 
         div.on("plotly_click", (event) => {
-            // 跳过右键（检查原始鼠标事件）
-            const src = event && event.event;
-            if (src) {
-                const btn = src.which !== undefined ? src.which : src.button;
-                if (btn === 3 || btn === 2) return;
-            }
             if (!event.points || !event.points.length) return;
             if (typeof isDualCursorMode !== 'undefined' && isDualCursorMode) {
                 handleDualCursorClick(event, 'C1');
             }
         });
 
+        div.addEventListener("mousedown", (e) => {
+            if (e.button === 2 && isDualCursorMode) { _rightClickZoom = true; }
+        });
         div.addEventListener("contextmenu", (e) => {
-            if (typeof isDualCursorMode === 'undefined' || !isDualCursorMode) return;
+            if (!isDualCursorMode) return;
             e.preventDefault();
-            const layout = div._fullLayout;
-            if (!layout) return;
+            e.stopPropagation();
+            _rightClickZoom = false;
+            const fullLayout = div._fullLayout;
+            if (!fullLayout || !fullLayout.xaxis) return;
+            const xaxis = fullLayout.xaxis;
             const rect = div.getBoundingClientRect();
-            const xData = layout.xaxis.p2d(e.clientX - rect.left);
-            const yData = layout.yaxis.p2d(e.clientY - rect.top);
-            handleDualCursorClick({ points: [{ x: xData, y: yData }] }, 'C2');
+            const axisOffset = xaxis._offset || 0;
+            const axisLen = xaxis._length || 1;
+            const rng = xaxis.range || xaxis._range || [0,1];
+            const ratio = (e.clientX - rect.left - axisOffset) / axisLen;
+            const xVal = rng[0] + ratio * (rng[1] - rng[0]);
+            const trace = div.data && div.data[0];
+            if (trace && trace.x) {
+                const time = trace.x;
+                let nearestIdx = 0, minDiff = Infinity;
+                for (let i = 0; i < time.length; i++) {
+                    const diff = Math.abs(time[i] - xVal);
+                    if (diff < minDiff) { minDiff = diff; nearestIdx = i; }
+                }
+                handleDualCursorClick({ points: [{ x: time[nearestIdx], y: trace.y[nearestIdx] }] }, 'C2');
+            }
         });
 
         allDivs.push(div);
