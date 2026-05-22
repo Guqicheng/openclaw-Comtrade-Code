@@ -1,3 +1,10 @@
+# COMTRADE Viewer
+
+- 仓库：https://github.com/Guqicheng/openclaw-Comtrade-Code  
+- 架构：`docs/ARCHITECTURE.md` · 开发流程：`docs/DEVELOPMENT.md` · 路线图：`docs/ROADMAP.md`  
+- 领域词汇：`CONTEXT.md` · Agent Skills：`.cursor/skills/`
+
+## 目录结构
 
 ```
 test1.2

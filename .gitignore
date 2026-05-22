@@ -3,7 +3,11 @@ __pycache__/
 backup-*/ 
 uploads/ 
 build/ 
-venv/ 
-uploads/ 
-git-*.bat 
-git-*.sh 
+venv/
+venv.broken-*/
+uploads/
+git-*.bat
+git-*.sh
+.pytest_cache/
+.ruff_cache/
+*.log
