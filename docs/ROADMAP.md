@@ -2,6 +2,8 @@
 
 > 详细功能表见 [`项目开发计划.md`](./项目开发计划.md)。本文件定义**里程碑与架构门禁**。
 
+> 工作区阶段定义见 `E:\开发项目\docs\FRAMEWORK.md`。
+
 ## M0 — 工程治理（当前）
 
 | 项 | 状态 |
@@ -19,9 +21,9 @@
 
 来源：Hermes 只读诊断 + 架构审查。
 
-1. `requirements.txt` 声明 `numpy`；`app.spec` 增加 `hiddenimports`  
-2. `_current_reader` → 按 `analysis_id` 会话（ADR-0002）  
-3. Flask `logging` 到文件  
+1. `requirements.txt` 声明 `numpy`；`app.spec` 增加 `hiddenimports`
+2. `_current_reader` → 按 `analysis_id` 会话（ADR-0002）
+3. Flask `logging` 到文件
 4. `downsample` 文档化或加抗混叠预滤波（ADR-0003 可选）
 
 **验收**：`pytest` 覆盖 `analysis.py` 核心函数；并发上传不串数据。
@@ -42,7 +44,7 @@
 
 每个里程碑**开始前** 30 分钟：
 
-- 查 CAAP2008X / 同类录波软件该能力如何做  
+- 查 CAAP2008X / 同类录波软件该能力如何做
 - 记录到 PR 或 `docs/adr/`（若决策难逆转）
 
 避免仅在 AI 对话里对齐、却不落文档。
