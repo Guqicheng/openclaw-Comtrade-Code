@@ -3,7 +3,7 @@
 
 from flask import Blueprint, request, jsonify, current_app
 from .services import save_files, process_comtrade_files
-from .analysis_routes import set_current_reader
+from .session_store import create_session
 from comtrade_parser.parser import parse_metadata
 import os
 import math
@@ -61,7 +61,7 @@ def upload():
 
         # ===== 只解析一次 =====
         reader, metadata = parse_metadata(cfg_path, dat_path)
-        set_current_reader(reader)  # 直接传 reader，不再二次解析
+        analysis_id = create_session(reader, cfg_path, dat_path)
 
         # ===== 构造波形数据（带降采样）=====
         raw_time = list(reader.time)
@@ -88,8 +88,9 @@ def upload():
         }
 
         return jsonify({
+            "analysisId": analysis_id,
             "metadata": metadata,
-            "waveform": waveform
+            "waveform": waveform,
         })
 
     except Exception as e:

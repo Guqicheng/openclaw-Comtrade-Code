@@ -24,4 +24,4 @@
 ## 相关 ADR
 
 - `docs/adr/0001` — 分层与仓库治理
-- `docs/adr/0002` — `analysis_id` 替代全局 reader（待实现）
+- `docs/adr/0002` — `analysis_id` 替代全局 reader（M1a 已实现）

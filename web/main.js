@@ -5,6 +5,7 @@ let originalXRange = null;
 const allDivs = [];
 let isSyncing = false;
 let currentWaveform = null;
+let currentAnalysisId = null;
 let selectedChannels = [];
 
 let visibleCount = 5;
@@ -67,6 +68,13 @@ async function uploadFiles() {
         return;
     }
 
+    if (!data.analysisId) {
+        alert("错误: 服务端未返回 analysisId");
+        setStatus("解析失败");
+        return;
+    }
+
+    currentAnalysisId = data.analysisId;
     displayMetadata(data.metadata);
     currentWaveform = data.waveform;
     originalXRange = null;

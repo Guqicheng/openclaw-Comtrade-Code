@@ -1,6 +1,13 @@
 // # ===== web/measurementTools.js =====
 // 测量与分析工具：双光标、RMS计算、峰值检测、FFT谐波分析
-// 依赖 main.js 中的全局变量：allDivs, currentWaveform, getYValueAtX
+// 依赖 main.js：allDivs, currentWaveform, currentAnalysisId, getYValueAtX
+
+function withAnalysisId(payload) {
+    if (!currentAnalysisId) {
+        throw new Error("请先上传并解析 COMTRADE 文件");
+    }
+    return { analysisId: currentAnalysisId, ...payload };
+}
 
 // ===================== 双光标测量 =====================
 let isDualCursorMode = false;
@@ -128,7 +135,7 @@ async function calculateChannelRMS(channelName) {
         const res = await fetch("/analysis/rms", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ channelName, cycleFreq: 50 })
+            body: JSON.stringify(withAnalysisId({ channelName, cycleFreq: 50 }))
         });
         const data = await res.json();
         if (data.error) {
@@ -167,7 +174,7 @@ async function detectChannelPeaks(channelName) {
         const res = await fetch("/analysis/peaks", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ channelName, thresholdRatio: 0.1 })
+            body: JSON.stringify(withAnalysisId({ channelName, thresholdRatio: 0.1 }))
         });
         const data = await res.json();
         if (data.error) {
@@ -203,7 +210,7 @@ async function performFFTAnalysis(channelName) {
         const res = await fetch("/analysis/fft", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ channelName })
+            body: JSON.stringify(withAnalysisId({ channelName }))
         });
         const data = await res.json();
         if (data.error) {
@@ -300,7 +307,7 @@ async function calculatePhaseDiff(channelA, channelB) {
         const res = await fetch("/analysis/phase-diff", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ channelA, channelB })
+            body: JSON.stringify(withAnalysisId({ channelA, channelB }))
         });
         const data = await res.json();
         if (data.error) {

@@ -47,11 +47,11 @@ git push -u origin feat/简短描述
 
 ## 提交信息
 
-- `feat:` 新功能  
-- `fix:` 修复  
-- `docs:` 文档  
-- `refactor:` 重构（不改行为）  
-- `test:` 测试  
+- `feat:` 新功能
+- `fix:` 修复
+- `docs:` 文档
+- `refactor:` 重构（不改行为）
+- `test:` 测试
 - `chore:` 工具/依赖
 
 ## 本地运行
@@ -82,8 +82,8 @@ python -m pre_commit run --all-files
 
 若 `git push` 或 `pre-commit` 报 `Could not connect` / `Read timed out`：
 
-1. 检查代理/VPN，或换手机热点重试  
-2. 临时跳过钩子提交文档：`git commit --no-verify -m "..."`  
+1. 检查代理/VPN，或换手机热点重试
+2. 临时跳过钩子提交文档：`git commit --no-verify -m "..."`
 3. 恢复 Python 检查：在 `.pre-commit-config.yaml` 取消注释 ruff 段（见文件顶部说明）
 
 ```powershell
@@ -92,9 +92,13 @@ git config --global http.lowSpeedLimit 0
 git config --global http.lowSpeedTime 999999
 ```
 
+## 需求与验收
+
+- 用户每轮需求、当前里程碑验收表：`E:\开发项目\docs\REQUIREMENTS-LOG.md`（§5 = 当前轮）
+
 ## 文档与 Skills
 
-- 领域词汇：`/CONTEXT.md`  
-- 架构：`docs/ARCHITECTURE.md`  
-- 路线图：`docs/ROADMAP.md`（与 `docs/项目开发计划.md` 同步）  
+- 领域词汇：`/CONTEXT.md`
+- 架构：`docs/ARCHITECTURE.md`
+- 路线图：`docs/ROADMAP.md`（与 `docs/项目开发计划.md` 同步）
 - Agent Skills：`.cursor/skills/`（改编自 [mattpocock/skills](https://github.com/mattpocock/skills)）

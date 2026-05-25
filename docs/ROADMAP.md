@@ -22,7 +22,7 @@
 来源：Hermes 只读诊断 + 架构审查。
 
 1. `requirements.txt` 声明 `numpy`；`app.spec` 增加 `hiddenimports`
-2. `_current_reader` → 按 `analysis_id` 会话（ADR-0002）
+2. ~~`_current_reader` → `analysis_id`~~（ADR-0002，M1a 已完成）
 3. Flask `logging` 到文件
 4. `downsample` 文档化或加抗混叠预滤波（ADR-0003 可选）
 

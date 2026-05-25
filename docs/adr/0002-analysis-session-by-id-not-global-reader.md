@@ -2,7 +2,7 @@
 
 ## 状态
 
-accepted
+accepted — **M1a 已实现**（`session_store.py` + 上传返回 `analysisId`）
 
 ## 决策
 
@@ -14,6 +14,6 @@ Flask 默认多线程下全局变量会被并发上传覆盖，导致 RMS/FFT �
 
 ## 后果
 
-- 需实现缓存淘汰策略（LRU 或 TTL）  
-- 前端上传成功后保存 `analysis_id` 并在分析 API 中传递  
+- 需实现缓存淘汰策略（LRU 或 TTL）
+- 前端上传成功后保存 `analysis_id` 并在分析 API 中传递
 - 单用户本地场景也受益，行为可预期

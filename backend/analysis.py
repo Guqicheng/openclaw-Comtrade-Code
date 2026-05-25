@@ -9,6 +9,14 @@ try:
 except ImportError:
     _HAS_NUMPY = False
 
+
+def _hann_window(n):
+    """汉宁窗：NumPy 1.20+ 有 hann，旧版仅 hanning。"""
+    maker = getattr(numpy, "hann", None) or getattr(numpy, "hanning", None)
+    if maker is None:
+        raise AttributeError("numpy 无 hann/hanning 窗函数，请升级: pip install -U numpy")
+    return maker(n)
+
 def calculate_rms(values, time_values=None, cycle_freq=None):
     """
     计算全波 RMS 有效值。
@@ -115,8 +123,7 @@ def calculate_fft(values, sampling_rate):
     n = len(values)
 
     # 应用汉宁窗减少频谱泄漏
-    # numpy.hanning 在旧版本使用，新版本推荐 numpy.hann
-    window = numpy.hann(n)
+    window = _hann_window(n)
     windowed_data = numpy.array(values, dtype=float) * window
 
     # FFT
@@ -205,7 +212,7 @@ def calculate_phase_difference(values_a, values_b, sampling_rate, fundamental_fr
             return {"error": "数据点不足"}
 
         # 对两个通道做 FFT 提取基波相位
-        window = numpy.hann(n)
+        window = _hann_window(n)
         a_windowed = numpy.array(values_a, dtype=float) * window
         b_windowed = numpy.array(values_b, dtype=float) * window
 

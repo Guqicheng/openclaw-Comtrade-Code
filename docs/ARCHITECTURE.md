@@ -53,7 +53,7 @@
 
 - **输入**：分析参数（通道、时间窗等）
 - **输出**：RMS / 峰值 / FFT / 相角差 JSON
-- **当前技术债**：模块级 `_current_reader` 非线程安全 → 见 ADR-0002
+- **分析会话**：上传返回 `analysisId`，分析 API 须携带该字段（见 ADR-0002、`session_store.py`）
 
 ### 解析 `comtrade_parser/parser.py`
 
