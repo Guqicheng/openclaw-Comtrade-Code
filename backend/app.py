@@ -3,6 +3,7 @@
 
 import os
 import sys
+import logging
 import webbrowser
 import threading
 from flask import Flask, send_from_directory
@@ -28,6 +29,14 @@ def create_app():
     """创建 Flask 应用并绑定 API 蓝图与前端静态资源路由。"""
     app = Flask(__name__)
     app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+    # ── 日志配置 ──
+    handler = logging.FileHandler(os.path.join(os.path.dirname(__file__), '..', 'app.log'))
+    handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s'))
+    app.logger.addHandler(handler)
+    app.logger.setLevel(logging.INFO)
+    app.logger.info('应用启动')
+
     app.register_blueprint(bp)
     app.register_blueprint(analysis_bp)
 

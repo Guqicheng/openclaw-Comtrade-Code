@@ -187,7 +187,8 @@ def calculate_fft(values, sampling_rate):
         "fundamentalFreq": round(float(fundamental_freq), 2),
         "fundamentalMag": round(float(fundamental_mag), 6),
         "thd": round(float(thd), 2),
-        "harmonics": harmonics
+        "harmonics": harmonics,
+        "maxFreq": max_return_freq,
     }
 
 

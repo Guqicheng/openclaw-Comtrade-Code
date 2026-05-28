@@ -25,11 +25,11 @@
       </div>
       <div class="toolbar-divider"></div>
       <div class="page-size-selector">
-        <button id="pageSizeBtn" onclick="togglePageSizeMenu()">每页 5 个 ▾</button>
+        <button id="pageSizeBtn" onclick="togglePageSizeMenu()">每页 5 子图 ▾</button>
         <ul id="pageSizeMenu" class="hidden">
-          <li data-size="3">3 个</li>
-          <li data-size="4">4 个</li>
-          <li data-size="5">5 个</li>
+          <li data-size="3">3 子图</li>
+          <li data-size="4">4 子图</li>
+          <li data-size="5">5 子图</li>
         </ul>
       </div>
       <div class="toolbar-divider"></div>
@@ -126,7 +126,7 @@
           <!-- 峰值 -->
           <div class="tool-row">
             <select id="peakChannelSelect" class="tool-select"></select>
-            <button onclick="detectChannelPeaks(document.getElementById('peakChannelSelect').value)" class="tool-btn">峰值</button>
+            <button onclick="detectChannelPeaks(document.getElementById('peakChannelSelect').value)" class="tool-btn">峰谷检测</button>
           </div>
           <!-- FFT -->
           <div class="tool-row">

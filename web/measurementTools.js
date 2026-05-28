@@ -169,7 +169,7 @@ async function calculateChannelRMS(channelName) {
 
 // ===================== 峰值检测 =====================
 async function detectChannelPeaks(channelName) {
-    showFloatingResults("峰值检测", '<span class="measure-hint">检测中...</span>');
+    showFloatingResults("峰谷检测", '<span class="measure-hint">检测中...</span>');
     try {
         const res = await fetch("/analysis/peaks", {
             method: "POST",
@@ -178,7 +178,7 @@ async function detectChannelPeaks(channelName) {
         });
         const data = await res.json();
         if (data.error) {
-            showFloatingResults("峰值检测", `<span class="measure-error">${data.error}</span>`);
+            showFloatingResults("峰谷检测", `<span class="measure-error">${data.error}</span>`);
             return;
         }
 
@@ -190,7 +190,7 @@ async function detectChannelPeaks(channelName) {
             });
         }
 
-        showFloatingResults(`峰值 - ${channelName}`, `
+        showFloatingResults(`峰谷 - ${channelName}`, `
             <table class="measure-table">
                 <tr><td>波峰数</td><td>${data.peaks ? data.peaks.length : 0}</td></tr>
                 <tr><td>波谷数</td><td>${data.valleys ? data.valleys.length : 0}</td></tr>
@@ -198,7 +198,7 @@ async function detectChannelPeaks(channelName) {
             ${peakList ? '<table class="measure-table" style="margin-top:6px">' + peakList + '</table>' : ''}
         `);
     } catch (e) {
-        showFloatingResults("峰值检测", `<span class="measure-error">请求失败: ${e.message}</span>`);
+        showFloatingResults("峰谷检测", `<span class="measure-error">请求失败: ${e.message}</span>`);
     }
 }
 
@@ -252,7 +252,7 @@ function displayFFTModal(data) {
 
     modal.style.display = "flex";
 
-    const maxFreq = 2000;
+    const maxFreq = data.maxFreq > 0 ? data.maxFreq : 2000;
     const freqData = [];
     const magData = [];
     for (let i = 0; i < data.frequencies.length; i++) {

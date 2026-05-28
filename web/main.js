@@ -94,7 +94,7 @@ function setVisibleCount(count) {
     if (count === visibleCount) return;
     visibleCount = count;
     const btn = document.getElementById("pageSizeBtn");
-    if (btn) btn.textContent = `每页 ${count} 个 ▾`;
+    if (btn) btn.textContent = `每页 ${count} 子图 ▾`;
 
     setTimeout(() => {
         renderPlots();
@@ -331,6 +331,15 @@ function createPlotDiv(container, time, values, channelName, isDigital = false) 
             }
         });
 
+        div.on("plotly_hover", (ev) => {
+            if (!ev.points || !ev.points.length) return;
+            const p = ev.points[0];
+            const ch = (div.data && div.data[0] && div.data[0].name) || "";
+            const label = ch ? `${ch} ` : "";
+            setStatusCursor(`${label}t=${Number(p.x).toFixed(6)}s y=${Number(p.y).toFixed(4)}`);
+        });
+        div.on("plotly_unhover", () => setStatusCursor(null));
+
         div.addEventListener("contextmenu", (e) => {
             if (!isDualCursorMode) return;
             e.preventDefault();
@@ -467,6 +476,12 @@ function setStatus(msg) {
 function setStatusFile(msg) {
     const el = document.getElementById("statusFile");
     if (el) el.textContent = msg;
+}
+
+function setStatusCursor(text) {
+    const el = document.getElementById("statusCursor");
+    if (!el) return;
+    el.textContent = text ? `光标: ${text}` : "光标: —";
 }
 
 // 工具函数：根据 x 查 y

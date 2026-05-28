@@ -2,36 +2,11 @@
 # 定义后端 API 路由：处理文件上传、校验、保存，并调用 COMTRADE 解析逻辑。
 
 from flask import Blueprint, request, jsonify, current_app
-from .services import save_files, process_comtrade_files
+from .services import process_comtrade_files, downsample, MAX_DISPLAY_POINTS
 from .session_store import create_session
-from comtrade_parser.parser import parse_metadata
 import os
-import math
 
 bp = Blueprint('routes', __name__)
-
-# 波形数据最大点数（以 2K 屏 2560px 为基准，留 3 倍余量保证曲线平滑）
-# 超过此值自动降采样，加快传输和前端渲染
-MAX_DISPLAY_POINTS = 8000
-
-
-def downsample(values, max_points):
-    """
-    降采样：如果数据超过 max_points，均匀抽取保留波形趋势。
-    返回降采样后的列表。
-    """
-    n = len(values)
-    if n <= max_points:
-        return list(values)
-
-    step = n / max_points
-    result = []
-    for i in range(max_points):
-        idx = int(i * step)
-        if idx >= n:
-            idx = n - 1
-        result.append(values[idx])
-    return result
 
 
 @bp.route('/upload', methods=['POST'])
@@ -60,7 +35,7 @@ def upload():
         dat_file.save(dat_path)
 
         # ===== 只解析一次 =====
-        reader, metadata = parse_metadata(cfg_path, dat_path)
+        reader, metadata = process_comtrade_files(cfg_path, dat_path)
         analysis_id = create_session(reader, cfg_path, dat_path)
 
         # ===== 构造波形数据（带降采样）=====
@@ -94,4 +69,5 @@ def upload():
         })
 
     except Exception as e:
+        current_app.logger.exception("上传失败: %s", str(e))
         return jsonify({"error": str(e)}), 500

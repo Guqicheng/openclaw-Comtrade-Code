@@ -1,7 +1,7 @@
 # ===== backend/analysis_routes.py =====
 # 分析功能 API：RMS、峰值、FFT、相角差（按 analysis_id 绑定会话）
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from .analysis import (
     calculate_rms,
     detect_peaks,
@@ -9,7 +9,7 @@ from .analysis import (
     calculate_phase_difference,
 )
 from .session_store import create_session, get_session
-from comtrade_parser.parser import parse_metadata
+from .services import process_comtrade_files
 
 analysis_bp = Blueprint("analysis", __name__)
 
@@ -44,6 +44,20 @@ def _channel_values(reader, channel_name: str):
     return None
 
 
+def _sampling_rate_from_reader(reader) -> float:
+    """从 CFG 采样率行或时间轴推导采样率（Hz）。"""
+    if reader.cfg.sample_rates:
+        rate = float(reader.cfg.sample_rates[0][0])
+        if rate > 0:
+            return rate
+    time_vals = reader.time
+    if time_vals is not None and len(time_vals) >= 2:
+        dt = float(time_vals[1]) - float(time_vals[0])
+        if dt > 0:
+            return 1.0 / dt
+    return 0.0
+
+
 @analysis_bp.route("/analysis/load", methods=["POST"])
 def analysis_load():
     """通过路径加载并注册会话（备用；主路径为 /upload 返回 analysisId）。"""
@@ -53,10 +67,11 @@ def analysis_load():
         dat_path = data.get("datPath")
         if not cfg_path or not dat_path:
             return jsonify({"error": "缺少文件路径"}), 400
-        reader, _ = parse_metadata(cfg_path, dat_path)
+        reader, _ = process_comtrade_files(cfg_path, dat_path)
         analysis_id = create_session(reader, cfg_path, dat_path)
         return jsonify({"status": "ok", "analysisId": analysis_id})
     except Exception as e:
+        current_app.logger.exception("analysis/load: %s", str(e))
         return jsonify({"error": str(e)}), 500
 
 
@@ -78,6 +93,7 @@ def analysis_rms():
         result = calculate_rms(values, list(reader.time), cycle_freq)
         return jsonify({"channelName": channel_name, **result})
     except Exception as e:
+        current_app.logger.exception("analysis/rms: %s", str(e))
         return jsonify({"error": str(e)}), 500
 
 
@@ -115,6 +131,7 @@ def analysis_peaks():
             "valleys": valleys_with_time,
         })
     except Exception as e:
+        current_app.logger.exception("analysis/peaks: %s", str(e))
         return jsonify({"error": str(e)}), 500
 
 
@@ -132,9 +149,7 @@ def analysis_fft():
         if values is None:
             return jsonify({"error": f"未找到通道: {channel_name}"}), 404
 
-        sampling_rate = 0
-        if reader.cfg.sample_rates:
-            sampling_rate = reader.cfg.sample_rates[0][0]
+        sampling_rate = _sampling_rate_from_reader(reader)
         if sampling_rate <= 0:
             return jsonify({"error": "无法获取采样率"}), 400
 
@@ -145,6 +160,7 @@ def analysis_fft():
         result["channelName"] = channel_name
         return jsonify(result)
     except Exception as e:
+        current_app.logger.exception("analysis/fft: %s", str(e))
         return jsonify({"error": str(e)}), 500
 
 
@@ -170,9 +186,9 @@ def analysis_phase_diff():
         values_a = values_a[:n]
         values_b = values_b[:n]
 
-        sampling_rate = 0
-        if reader.cfg.sample_rates:
-            sampling_rate = reader.cfg.sample_rates[0][0]
+        sampling_rate = _sampling_rate_from_reader(reader)
+        if sampling_rate <= 0:
+            return jsonify({"error": "无法获取采样率"}), 400
         fundamental_freq = reader.cfg.frequency or 50
 
         result = calculate_phase_difference(
@@ -185,6 +201,7 @@ def analysis_phase_diff():
         result["channelB"] = ch_b_name
         return jsonify(result)
     except Exception as e:
+        current_app.logger.exception("analysis/phase-diff: %s", str(e))
         return jsonify({"error": str(e)}), 500
 
 
@@ -197,4 +214,5 @@ def analysis_channels():
         channels = [ch.name for ch in reader.cfg.analog_channels]
         return jsonify({"channels": channels})
     except Exception as e:
+        current_app.logger.exception("analysis/channels: %s", str(e))
         return jsonify({"error": str(e)}), 500
