@@ -36,6 +36,48 @@ function clientXToPlotTime(div, clientX) {
     return rng[0] + ratio * (rng[1] - rng[0]);
 }
 
+/**
+ * Plotly #5311：右键拖拽在 mouseup 时会触发错误缩放；阻止非左键进入 Plotly 拖拽层。
+ * 双光标 C2 仍走 contextmenu，不受影响。
+ */
+function blockNonLeftPointerForPlotly(e) {
+    if (e.button !== 0) {
+        e.stopImmediatePropagation();
+    }
+}
+
+/** 从 relayout 事件解析可同步的 X 范围（纠正倒置、过窄、越界） */
+function extractSyncedXRange(eventData) {
+    let r0;
+    let r1;
+    if (Array.isArray(eventData["xaxis.range"])) {
+        [r0, r1] = eventData["xaxis.range"];
+    } else if ("xaxis.range[0]" in eventData && "xaxis.range[1]" in eventData) {
+        r0 = eventData["xaxis.range[0]"];
+        r1 = eventData["xaxis.range[1]"];
+    } else {
+        return null;
+    }
+    if (!Number.isFinite(r0) || !Number.isFinite(r1)) return null;
+    if (r0 > r1) {
+        const t = r0;
+        r0 = r1;
+        r1 = t;
+    }
+    const width = r1 - r0;
+    if (width <= 0) return null;
+    if (originalXRange) {
+        const fullWidth = originalXRange[1] - originalXRange[0];
+        if (fullWidth > 0 && width < fullWidth * 1e-5) {
+            return null;
+        }
+        r0 = Math.max(r0, originalXRange[0]);
+        r1 = Math.min(r1, originalXRange[1]);
+        if (r1 - r0 <= 0) return null;
+    }
+    return [r0, r1];
+}
+
 
 function getPlotHeight() {
     const container = document.getElementById("content");
@@ -217,6 +259,12 @@ function createPlotDiv(container, time, values, channelName, isDigital = false) 
     const div = document.createElement("div");
     wrapper.appendChild(div);
 
+    wrapper.addEventListener("mousedown", blockNonLeftPointerForPlotly, true);
+    wrapper.addEventListener("mouseup", blockNonLeftPointerForPlotly, true);
+    wrapper.addEventListener("mousedown", (e) => {
+        lastPlotPointerButton = e.button;
+    });
+
     const maxFontSize = 14;
     const minFontSize = 8;
     const baseLength = 10;
@@ -264,12 +312,10 @@ function createPlotDiv(container, time, values, channelName, isDigital = false) 
             if (isSyncing) return;
             if (pendingRelayout) clearTimeout(pendingRelayout);
             pendingRelayout = setTimeout(() => {
-                const update = {};
-                if ('xaxis.range[0]' in eventData && 'xaxis.range[1]' in eventData) {
-                    update['xaxis.range'] = [eventData['xaxis.range[0]'], eventData['xaxis.range[1]']];
-                }
+                const xRange = extractSyncedXRange(eventData);
+                if (!xRange) return;
+                const update = { "xaxis.range": xRange };
                 // 仅联动 X 轴；各通道 Y 量纲不同，禁止跨子图同步 Y（否则数字量/模拟量会被压扁）
-                if (Object.keys(update).length === 0) return;
                 isSyncing = true;
                 Promise.all(allDivs.map(d => d !== div ? Plotly.relayout(d, update) : Promise.resolve())).then(() => {
                     isSyncing = false;
@@ -285,12 +331,6 @@ function createPlotDiv(container, time, values, channelName, isDigital = false) 
             }
         });
 
-        div.addEventListener("mousedown", (e) => {
-            lastPlotPointerButton = e.button;
-            if (isDualCursorMode && e.button === 2) {
-                e.preventDefault();
-            }
-        });
         div.addEventListener("contextmenu", (e) => {
             if (!isDualCursorMode) return;
             e.preventDefault();
