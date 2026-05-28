@@ -23,7 +23,7 @@ function toggleDualCursorMode() {
     if (isDualCursorMode) {
         cursor1 = null; cursor2 = null;
         showFloatingResults("双光标", '<span class="measure-hint">左键放 C1，右键放 C2</span>');
-        allDivs.forEach(div => { try { Plotly.relayout(div, { dragmode: 'pan' }); } catch(e) {} });
+        allDivs.forEach(div => { try { Plotly.relayout(div, { dragmode: false }); } catch(e) {} });
     } else {
         clearDualCursors();
         closeFloatingResults();

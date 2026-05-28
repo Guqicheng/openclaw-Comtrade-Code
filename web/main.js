@@ -12,6 +12,29 @@ let visibleCount = 5;
 
 let pendingRelayout = null;
 let plotCreationCounter = { total: 0, completed: 0 };
+/** 最近一次在子图上的按键（0=左 2=右），用于双光标区分 C1/C2 */
+let lastPlotPointerButton = 0;
+
+/** 将屏幕 X 坐标换算为当前子图时间轴上的值（优先 Plotly 内置换算） */
+function clientXToPlotTime(div, clientX) {
+    const fullLayout = div._fullLayout;
+    if (!fullLayout || !fullLayout.xaxis) return null;
+    const xaxis = fullLayout.xaxis;
+    const rect = div.getBoundingClientRect();
+    const xpx = clientX - rect.left;
+    if (typeof Plotly !== "undefined" && Plotly.Axes && typeof Plotly.Axes.p2d === "function") {
+        try {
+            return Plotly.Axes.p2d(xaxis, xpx);
+        } catch (e) {
+            /* fall through */
+        }
+    }
+    const axisOffset = xaxis._offset || 0;
+    const axisLen = xaxis._length || 1;
+    const rng = xaxis.range || xaxis._range || [0, 1];
+    const ratio = (xpx - axisOffset) / axisLen;
+    return rng[0] + ratio * (rng[1] - rng[0]);
+}
 
 
 function getPlotHeight() {
@@ -236,27 +259,16 @@ function createPlotDiv(container, time, values, channelName, isDigital = false) 
         displayModeBar: false,
         doubleClick: false
     }).then(() => {
-        let _rightClickZoom = false;
-
         div.on('plotly_relayout', (eventData) => {
             if (eventData['shapes'] !== undefined || eventData['annotations'] !== undefined) return;
             if (isSyncing) return;
-            if (_rightClickZoom) {
-                _rightClickZoom = false;
-                if (originalXRange && eventData['xaxis.range[0]'] !== undefined) {
-                    Plotly.relayout(div, { 'xaxis.range': originalXRange.slice() });
-                }
-                return;
-            }
             if (pendingRelayout) clearTimeout(pendingRelayout);
             pendingRelayout = setTimeout(() => {
                 const update = {};
                 if ('xaxis.range[0]' in eventData && 'xaxis.range[1]' in eventData) {
                     update['xaxis.range'] = [eventData['xaxis.range[0]'], eventData['xaxis.range[1]']];
                 }
-                if (!isDigital && 'yaxis.range[0]' in eventData && 'yaxis.range[1]' in eventData) {
-                    update['yaxis.range'] = [eventData['yaxis.range[0]'], eventData['yaxis.range[1]']];
-                }
+                // 仅联动 X 轴；各通道 Y 量纲不同，禁止跨子图同步 Y（否则数字量/模拟量会被压扁）
                 if (Object.keys(update).length === 0) return;
                 isSyncing = true;
                 Promise.all(allDivs.map(d => d !== div ? Plotly.relayout(d, update) : Promise.resolve())).then(() => {
@@ -267,38 +279,39 @@ function createPlotDiv(container, time, values, channelName, isDigital = false) 
 
         div.on("plotly_click", (event) => {
             if (!event.points || !event.points.length) return;
-            if (typeof isDualCursorMode !== 'undefined' && isDualCursorMode) {
-                handleDualCursorClick(event, 'C1');
+            if (typeof isDualCursorMode !== "undefined" && isDualCursorMode) {
+                if (lastPlotPointerButton !== 0) return;
+                handleDualCursorClick(event, "C1");
             }
         });
 
         div.addEventListener("mousedown", (e) => {
-            if (e.button === 2 && isDualCursorMode) { _rightClickZoom = true; }
+            lastPlotPointerButton = e.button;
+            if (isDualCursorMode && e.button === 2) {
+                e.preventDefault();
+            }
         });
         div.addEventListener("contextmenu", (e) => {
             if (!isDualCursorMode) return;
             e.preventDefault();
             e.stopPropagation();
-            _rightClickZoom = false;
-            const fullLayout = div._fullLayout;
-            if (!fullLayout || !fullLayout.xaxis) return;
-            const xaxis = fullLayout.xaxis;
-            const rect = div.getBoundingClientRect();
-            const axisOffset = xaxis._offset || 0;
-            const axisLen = xaxis._length || 1;
-            const rng = xaxis.range || xaxis._range || [0,1];
-            const ratio = (e.clientX - rect.left - axisOffset) / axisLen;
-            const xVal = rng[0] + ratio * (rng[1] - rng[0]);
+            const xVal = clientXToPlotTime(div, e.clientX);
             const trace = div.data && div.data[0];
-            if (trace && trace.x) {
-                const time = trace.x;
-                let nearestIdx = 0, minDiff = Infinity;
-                for (let i = 0; i < time.length; i++) {
-                    const diff = Math.abs(time[i] - xVal);
-                    if (diff < minDiff) { minDiff = diff; nearestIdx = i; }
+            if (xVal == null || !trace || !trace.x) return;
+            const time = trace.x;
+            let nearestIdx = 0;
+            let minDiff = Infinity;
+            for (let i = 0; i < time.length; i++) {
+                const diff = Math.abs(time[i] - xVal);
+                if (diff < minDiff) {
+                    minDiff = diff;
+                    nearestIdx = i;
                 }
-                handleDualCursorClick({ points: [{ x: time[nearestIdx], y: trace.y[nearestIdx] }] }, 'C2');
             }
+            handleDualCursorClick(
+                { points: [{ x: time[nearestIdx], y: trace.y[nearestIdx] }] },
+                "C2"
+            );
         });
 
         allDivs.push(div);
