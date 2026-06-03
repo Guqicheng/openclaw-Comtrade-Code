@@ -35,6 +35,9 @@ function populateChannelList(waveform) {
     if (digitalBadge) digitalBadge.textContent = digitalKeys.length;
 
     setupChannelSearch();
+    if (typeof refreshDigitalListFilter === "function") {
+        refreshDigitalListFilter();
+    }
 }
 
 function addChannelCheckbox(parent, channelName, checked) {
@@ -67,8 +70,11 @@ function setupChannelSearch() {
     searchInput.parentNode.replaceChild(newInput, searchInput);
 
     newInput.addEventListener("input", function () {
+        if (typeof refreshDigitalListFilter === "function") {
+            refreshDigitalListFilter();
+        }
         const keyword = this.value.toLowerCase();
-        document.querySelectorAll("#analogChannelList label, #digitalChannelList label").forEach(label => {
+        document.querySelectorAll("#analogChannelList label").forEach(label => {
             const text = label.textContent.toLowerCase();
             label.style.display = text.includes(keyword) ? "flex" : "none";
         });

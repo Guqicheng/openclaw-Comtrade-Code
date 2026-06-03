@@ -38,6 +38,13 @@ def upload():
         reader, metadata = process_comtrade_files(cfg_path, dat_path)
         analysis_id = create_session(reader, cfg_path, dat_path)
 
+        # 触发点（相对起始点秒数）：用于 CAAP 对标的触发点标注
+        try:
+            trigger_offset = float(getattr(reader, "trigger_time", 0.0) or 0.0)
+        except Exception:
+            trigger_offset = 0.0
+        metadata["triggerOffsetSec"] = trigger_offset
+
         # ===== 构造波形数据（带降采样）=====
         raw_time = list(reader.time)
         n = len(raw_time)

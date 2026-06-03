@@ -62,6 +62,41 @@ body, html {
   gap: 8px;
 }
 
+.view-tools,
+.export-tools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.zoom-controls button,
+.view-tools button,
+.export-tools button {
+  font-size: 11px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  background: #fff;
+  color: #2c3e50;
+}
+
+.view-tools button:hover,
+.export-tools button:hover {
+  background: #f3f4f6;
+}
+
+.view-tools button.active {
+  background: #1f2937;
+  color: #fff;
+  border-color: #111827;
+}
+
+.export-tools button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .toolbar-divider {
   width: 1px;
   height: 20px;
@@ -106,7 +141,9 @@ body, html {
   border-radius: 0; border-left: none; border-right: none;
   font-size: 11px; font-weight: normal;
 }
-.zoom-controls button:nth-child(3) { border-radius: 0 3px 3px 0; border-left: none; }
+.zoom-controls button:nth-child(3) { border-radius: 0; border-left: none; border-right: none; }
+.zoom-controls button:nth-child(4) { border-radius: 0 3px 3px 0; border-left: none; font-size: 11px; font-weight: normal; }
+.zoom-controls button:nth-child(4).active { background: #409eff; border-color: #2c7be5; }
 
 /* 每页选择 */
 .page-size-selector { position: relative; }
@@ -163,6 +200,7 @@ body, html {
   border-right: 1px solid #e0e0e0;
   overflow-y: auto;
   overflow-x: hidden;
+  scrollbar-gutter: stable;
   transition: width 0.25s ease, min-width 0.25s ease, padding 0.25s ease, opacity 0.25s ease;
 }
 
@@ -253,6 +291,14 @@ body, html {
   gap: 4px;
   margin-bottom: 6px;
 }
+.ch-action-bar-wrap {
+  flex-wrap: wrap;
+}
+.ch-action-bar #btnHideStaticDigital.active {
+  background: #409eff;
+  color: #fff;
+  border-color: #409eff;
+}
 .ch-action-bar button {
   flex: 1;
   padding: 3px 0;
@@ -286,8 +332,19 @@ body, html {
   border-bottom: 1px solid #eee;
 }
 .ch-group-header:hover { background: #f0f2f8; }
-.ch-group-header.collapsed + .ch-group-body { display: none; }
-.ch-group-header .arrow { font-size: 9px; color: #999; margin-left: auto; }
+.ch-group.collapsed .ch-action-bar,
+.ch-group.collapsed .ch-group-body {
+  display: none;
+}
+.ch-group-header .arrow {
+  font-size: 9px;
+  color: #999;
+  margin-left: auto;
+  transition: transform 0.15s;
+}
+.ch-group.collapsed .ch-group-header .arrow {
+  transform: rotate(-90deg);
+}
 
 .badge {
   display: inline-flex;
@@ -379,7 +436,41 @@ body, html {
 #plots {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 8px;
+  min-height: 0;
+}
+
+.time-nav-bar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px 8px;
+  background: #f5f6fa;
+  border-top: 1px solid #ddd;
+}
+.time-nav-bar.hidden {
+  display: none;
+}
+.time-nav-label {
+  font-size: 12px;
+  color: #666;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.time-nav-bar input[type="range"] {
+  flex: 1;
+  min-width: 80px;
+  cursor: pointer;
+}
+.time-nav-hint {
+  font-size: 11px;
+  color: #888;
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-width: 140px;
+  text-align: right;
 }
 
 .plot-wrapper {

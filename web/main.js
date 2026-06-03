@@ -3,17 +3,147 @@
 
 let originalXRange = null;
 const allDivs = [];
-let isSyncing = false;
 let currentWaveform = null;
 let currentAnalysisId = null;
 let selectedChannels = [];
+let currentTriggerOffsetSec = null;
+let showTriggerMarker = true;
+let overlayMode = false;
+let hideStaticDigital = false;
 
 let visibleCount = 5;
 
-let pendingRelayout = null;
 let plotCreationCounter = { total: 0, completed: 0 };
 /** 最近一次在子图上的按键（0=左 2=右），用于双光标区分 C1/C2 */
 let lastPlotPointerButton = 0;
+let suppressTimeNavEvent = false;
+
+/** 交互：默认框选缩放；可选平移；多子图 X 轴严格同步 */
+let lastSyncedXRange = null;
+let suppressPlotRelayoutSync = 0;
+let waveDragMode = "zoom"; // zoom=框选放大 | pan=平移
+let hoverRafId = null;
+let pendingHoverText = undefined;
+
+function isOverlayRelayoutNoise(eventData) {
+    return (
+        eventData["shapes"] !== undefined ||
+        eventData["annotations"] !== undefined ||
+        eventData.shapes !== undefined ||
+        eventData.annotations !== undefined
+    );
+}
+
+function resolvePlotDragmode() {
+    if (typeof isDualCursorMode !== "undefined" && isDualCursorMode) return false;
+    return waveDragMode === "pan" ? "pan" : "zoom";
+}
+
+function applyWaveDragmodeToAllPlots() {
+    const dm = resolvePlotDragmode();
+    allDivs.forEach((div) => {
+        try {
+            Plotly.relayout(div, { dragmode: dm });
+        } catch (e) {
+            /* ignore */
+        }
+    });
+}
+
+function setWaveDragMode(mode) {
+    if (mode !== "pan" && mode !== "zoom") return;
+    waveDragMode = mode;
+    const btn = document.getElementById("btnTogglePan");
+    if (btn) btn.classList.toggle("active", mode === "pan");
+    applyWaveDragmodeToAllPlots();
+    setStatus(mode === "pan" ? "平移模式：拖动波形浏览" : "框选模式：拖拽框选放大");
+}
+
+function toggleWavePanMode() {
+    setWaveDragMode(waveDragMode === "pan" ? "zoom" : "pan");
+}
+
+/** 将所有子图 X 轴设为同一范围（精确同步） */
+function applyXRangeToAllPlots(range, opts = {}) {
+    if (!range || !allDivs.length) return Promise.resolve();
+    const r = range.slice();
+    lastSyncedXRange = r;
+    suppressPlotRelayoutSync++;
+
+    const update = { "xaxis.range": r };
+    const tasks = allDivs.map((div) => {
+        if (!div || !div.layout) return Promise.resolve();
+        return Plotly.relayout(div, update);
+    });
+
+    return Promise.all(tasks)
+        .then(() => {
+            if (opts.refreshOverlays) refreshPlotOverlays();
+            updateTimeNavigatorHint(r);
+        })
+        .finally(() => {
+            suppressPlotRelayoutSync = Math.max(0, suppressPlotRelayoutSync - 1);
+        });
+}
+
+/** 某一子图被用户拖动/框选后，立即同步其余子图 */
+function handlePlotRelayout(sourceDiv, eventData) {
+    if (suppressPlotRelayoutSync > 0) return;
+    if (isOverlayRelayoutNoise(eventData)) return;
+    const xRange = extractSyncedXRange(eventData);
+    if (!xRange) return;
+
+    lastSyncedXRange = xRange.slice();
+    suppressPlotRelayoutSync++;
+
+    const update = { "xaxis.range": xRange };
+    const tasks = allDivs
+        .filter((d) => d && d !== sourceDiv && d.layout)
+        .map((d) => Plotly.relayout(d, update));
+
+    Promise.all(tasks)
+        .then(() => updateTimeNavigatorHint(xRange))
+        .finally(() => {
+            suppressPlotRelayoutSync = Math.max(0, suppressPlotRelayoutSync - 1);
+        });
+}
+
+function updateTimeNavigatorHint(range) {
+    const bar = document.getElementById("timeNavBar");
+    const slider = document.getElementById("timeNavSlider");
+    const hint = document.getElementById("timeNavHint");
+    if (!bar || !slider || !hint || !originalXRange || !range) return;
+
+    const fullW = originalXRange[1] - originalXRange[0];
+    const winW = range[1] - range[0];
+    if (fullW <= 0 || winW <= 0) return;
+
+    if (winW >= fullW * 0.999) {
+        bar.classList.add("hidden");
+        return;
+    }
+
+    bar.classList.remove("hidden");
+    const minStart = originalXRange[0];
+    const maxStart = originalXRange[1] - winW;
+    slider.min = String(minStart);
+    slider.max = String(maxStart);
+    slider.step = String(Math.max(winW / 300, fullW / 10000, 1e-9));
+
+    suppressTimeNavEvent = true;
+    slider.value = String(Math.max(minStart, Math.min(range[0], maxStart)));
+    suppressTimeNavEvent = false;
+    hint.textContent = `${range[0].toFixed(4)}s ~ ${range[1].toFixed(4)}s（全长 ${fullW.toFixed(4)}s）`;
+}
+
+function scheduleStatusCursor(text) {
+    pendingHoverText = text;
+    if (hoverRafId != null) return;
+    hoverRafId = requestAnimationFrame(() => {
+        hoverRafId = null;
+        setStatusCursor(pendingHoverText);
+    });
+}
 
 /** 将屏幕 X 坐标换算为当前子图时间轴上的值（优先 Plotly 内置换算） */
 function clientXToPlotTime(div, clientX) {
@@ -142,7 +272,12 @@ async function uploadFiles() {
     currentAnalysisId = data.analysisId;
     displayMetadata(data.metadata);
     currentWaveform = data.waveform;
+    currentTriggerOffsetSec =
+        data && data.metadata && Number.isFinite(Number(data.metadata.triggerOffsetSec))
+            ? Number(data.metadata.triggerOffsetSec)
+            : null;
     originalXRange = null;
+    lastSyncedXRange = null;
 
     if (typeof populateChannelList === "function") {
         populateChannelList(currentWaveform);
@@ -183,11 +318,6 @@ function displayMetadata(meta) {
 function renderPlots() {
     const container = document.getElementById("plots");
 
-    if (pendingRelayout) {
-        clearTimeout(pendingRelayout);
-        pendingRelayout = null;
-    }
-
     let currentXRange = null;
     if (allDivs.length > 0) {
         try {
@@ -205,6 +335,7 @@ function renderPlots() {
     allDivs.length = 0;
 
     if (!currentWaveform || !selectedChannels.length) {
+        hideTimeNavigator();
         container.innerHTML = `
             <div class="placeholder">
                 <div class="placeholder-icon">📊</div>
@@ -216,6 +347,12 @@ function renderPlots() {
     const time = currentWaveform.time;
     if (!originalXRange) {
         originalXRange = [Math.min(...time), Math.max(...time)];
+        lastSyncedXRange = originalXRange.slice();
+    }
+
+    if (overlayMode) {
+        renderOverlayPlot(container, time, currentXRange);
+        return;
     }
 
     plotCreationCounter.total = 0;
@@ -225,7 +362,9 @@ function renderPlots() {
         if (selectedChannels.includes(chName)) plotCreationCounter.total++;
     });
     Object.keys(currentWaveform.digital || {}).forEach(chName => {
-        if (selectedChannels.includes(chName)) plotCreationCounter.total++;
+        if (selectedChannels.includes(chName) && shouldShowDigitalChannel(chName)) {
+            plotCreationCounter.total++;
+        }
     });
 
     Object.keys(currentWaveform.analog).forEach(chName => {
@@ -235,23 +374,170 @@ function renderPlots() {
 
     Object.keys(currentWaveform.digital || {}).forEach(chName => {
         if (!selectedChannels.includes(chName)) return;
+        if (!shouldShowDigitalChannel(chName)) return;
         createPlotDiv(container, time, currentWaveform.digital[chName], chName, true);
     });
 
     if (currentXRange) {
         window.restoreZoomAfterAllPlots = () => {
-            allDivs.forEach(div => {
-                if (div && div.layout) {
-                    Plotly.relayout(div, { 'xaxis.range': currentXRange });
-                }
-            });
+            applyXRangeToAllPlots(currentXRange);
         };
     }
 }
 
-function createPlotDiv(container, time, values, channelName, isDigital = false) {
-    const RELAYOUT_DEBOUNCE_MS = 60;
+/** 当前可见 X 范围（优先用子图缩放，避免切换标注时误改范围） */
+function getCurrentVisibleXRange() {
+    const first = allDivs.find(
+        (d) => d && d.layout && d.layout.xaxis && d.layout.xaxis.range
+    );
+    if (first) return first.layout.xaxis.range.slice();
+    if (originalXRange) return originalXRange.slice();
+    return null;
+}
 
+/** 触发点竖线/标注（与双光标共用 shapes，避免 relayout 互相覆盖） */
+function getTriggerMarkerOverlays() {
+    const visibleX = getCurrentVisibleXRange();
+    if (
+        !showTriggerMarker ||
+        currentTriggerOffsetSec == null ||
+        !Number.isFinite(currentTriggerOffsetSec) ||
+        !visibleX ||
+        currentTriggerOffsetSec < visibleX[0] ||
+        currentTriggerOffsetSec > visibleX[1]
+    ) {
+        return { shapes: [], annotations: [] };
+    }
+    const t = currentTriggerOffsetSec;
+    return {
+        shapes: [{
+            type: "line",
+            x0: t,
+            x1: t,
+            y0: 0,
+            y1: 1,
+            xref: "x",
+            yref: "paper",
+            line: { color: "#f59e0b", width: 1.5, dash: "dot" },
+        }],
+        annotations: [{
+            x: t,
+            y: 1,
+            xref: "x",
+            yref: "paper",
+            text: "触发点",
+            showarrow: false,
+            yanchor: "bottom",
+            bgcolor: "rgba(245,158,11,0.85)",
+            bordercolor: "#f59e0b",
+            borderwidth: 1,
+            font: { size: 9, color: "white" },
+        }],
+    };
+}
+
+/** 统一刷新触发点 + 双光标（不重建子图，保留缩放范围） */
+function refreshPlotOverlays() {
+    const trig = getTriggerMarkerOverlays();
+    allDivs.forEach((div) => {
+        if (!div || !div.data || !div.data.length) return;
+        const dual =
+            typeof buildDualCursorOverlaysForDiv === "function"
+                ? buildDualCursorOverlaysForDiv(div)
+                : { shapes: [], annotations: [] };
+        const update = {
+            shapes: trig.shapes.concat(dual.shapes),
+            annotations: trig.annotations.concat(dual.annotations),
+        };
+        if (div.layout && div.layout.xaxis && div.layout.xaxis.range) {
+            update["xaxis.range"] = div.layout.xaxis.range.slice();
+        }
+        Plotly.relayout(div, update).catch(() => {});
+    });
+}
+
+function renderOverlayPlot(container, time, savedXRange) {
+    const wrapper = document.createElement("div");
+    wrapper.className = "plot-wrapper";
+    container.appendChild(wrapper);
+
+    const div = document.createElement("div");
+    wrapper.appendChild(div);
+
+    wrapper.addEventListener("mousedown", blockNonLeftPointerForPlotly, true);
+    wrapper.addEventListener("mouseup", blockNonLeftPointerForPlotly, true);
+    wrapper.addEventListener("mousedown", (e) => {
+        lastPlotPointerButton = e.button;
+    });
+
+    const analogSelected = selectedChannels.filter((ch) => ch in (currentWaveform.analog || {}));
+    if (!analogSelected.length) {
+        container.innerHTML = `
+            <div class="placeholder">
+                <div class="placeholder-icon">📊</div>
+                <div class="placeholder-text">叠加模式仅支持模拟量通道</div>
+                <div class="placeholder-sub">请在左侧“模拟通道”中选择至少 1 路</div>
+            </div>`;
+        return;
+    }
+
+    const traces = analogSelected.map((chName) => ({
+        x: time,
+        y: currentWaveform.analog[chName],
+        mode: "lines",
+        line: { width: 1.1 },
+        name: chName,
+    }));
+
+    const layout = {
+        height: Math.max(220, getPlotHeight() * Math.min(visibleCount, 3)),
+        margin: { l: 55, r: 8, t: 24, b: 30 },
+        xaxis: { range: originalXRange ? originalXRange.slice() : undefined },
+        yaxis: { title: { text: "叠加模式（模拟量）", standoff: 2, font: { size: 11 } } },
+        showlegend: true,
+        legend: { orientation: "h", x: 0, y: -0.15, font: { size: 10 } },
+        dragmode: resolvePlotDragmode()
+    };
+
+    Plotly.newPlot(div, traces, layout, { displayModeBar: false, responsive: true, scrollZoom: false }).then(() => {
+        allDivs.push(div);
+
+        const rangeToRestore = savedXRange || (originalXRange ? originalXRange.slice() : null);
+        const afterRange = () => {
+            refreshPlotOverlays();
+            updateTimeNavigator();
+        };
+        if (rangeToRestore) {
+            Plotly.relayout(div, { "xaxis.range": rangeToRestore }).then(afterRange).catch(afterRange);
+        } else {
+            afterRange();
+        }
+
+        // 缩放联动（叠加模式：只有一个图，仍保持 currentXRange）
+        div.on("plotly_relayout", (eventData) => {
+            handlePlotRelayout(div, eventData);
+        });
+
+        // 双光标 C1/C2
+        div.on("plotly_click", (event) => {
+            if (typeof isDualCursorMode !== "undefined" && isDualCursorMode) {
+                handleDualCursorClick(event, "C1");
+            }
+        });
+        div.addEventListener("contextmenu", (e) => {
+            if (!isDualCursorMode) return;
+            e.preventDefault();
+            e.stopPropagation();
+            const xValue = clientXToPlotTime(div, e.clientX);
+            if (xValue == null) return;
+            const first = traces[0];
+            const yValue = getYValueAtX(first.x, first.y, xValue);
+            handleDualCursorClick({ points: [{ x: xValue, y: yValue }] }, "C2");
+        });
+    });
+}
+
+function createPlotDiv(container, time, values, channelName, isDigital = false) {
     const wrapper = document.createElement("div");
     wrapper.className = "plot-wrapper";
     container.appendChild(wrapper);
@@ -299,28 +585,18 @@ function createPlotDiv(container, time, values, channelName, isDigital = false) 
             ticks: "",
             range: originalXRange ? originalXRange.slice() : undefined
         },
-        showlegend: false
+        showlegend: false,
+        dragmode: resolvePlotDragmode()
     };
 
     Plotly.newPlot(div, [trace], layout, {
         responsive: true,
         displayModeBar: false,
-        doubleClick: false
+        doubleClick: false,
+        scrollZoom: false
     }).then(() => {
-        div.on('plotly_relayout', (eventData) => {
-            if (eventData['shapes'] !== undefined || eventData['annotations'] !== undefined) return;
-            if (isSyncing) return;
-            if (pendingRelayout) clearTimeout(pendingRelayout);
-            pendingRelayout = setTimeout(() => {
-                const xRange = extractSyncedXRange(eventData);
-                if (!xRange) return;
-                const update = { "xaxis.range": xRange };
-                // 仅联动 X 轴；各通道 Y 量纲不同，禁止跨子图同步 Y（否则数字量/模拟量会被压扁）
-                isSyncing = true;
-                Promise.all(allDivs.map(d => d !== div ? Plotly.relayout(d, update) : Promise.resolve())).then(() => {
-                    isSyncing = false;
-                });
-            }, RELAYOUT_DEBOUNCE_MS);
+        div.on("plotly_relayout", (eventData) => {
+            handlePlotRelayout(div, eventData);
         });
 
         div.on("plotly_click", (event) => {
@@ -336,9 +612,9 @@ function createPlotDiv(container, time, values, channelName, isDigital = false) 
             const p = ev.points[0];
             const ch = (div.data && div.data[0] && div.data[0].name) || "";
             const label = ch ? `${ch} ` : "";
-            setStatusCursor(`${label}t=${Number(p.x).toFixed(6)}s y=${Number(p.y).toFixed(4)}`);
+            scheduleStatusCursor(`${label}t=${Number(p.x).toFixed(6)}s y=${Number(p.y).toFixed(4)}`);
         });
-        div.on("plotly_unhover", () => setStatusCursor(null));
+        div.on("plotly_unhover", () => scheduleStatusCursor(null));
 
         div.addEventListener("contextmenu", (e) => {
             if (!isDualCursorMode) return;
@@ -367,30 +643,312 @@ function createPlotDiv(container, time, values, channelName, isDigital = false) 
 
         plotCreationCounter.completed++;
         if (plotCreationCounter.completed === plotCreationCounter.total) {
-            if (typeof window.restoreZoomAfterAllPlots === 'function') {
-                setTimeout(() => {
+            setTimeout(() => {
+                if (typeof window.restoreZoomAfterAllPlots === "function") {
                     window.restoreZoomAfterAllPlots();
                     delete window.restoreZoomAfterAllPlots;
-                }, 0);
-            }
+                }
+                refreshPlotOverlays();
+                updateTimeNavigator();
+            }, 0);
         }
     });
 }
 
+/** 开关量是否发生过 0/1（或等效）变位 */
+function digitalChannelHasTransition(values) {
+    if (!values || values.length < 2) return false;
+    const v0 = Number(values[0]);
+    for (let i = 1; i < values.length; i++) {
+        if (Number(values[i]) !== v0) return true;
+    }
+    return false;
+}
+
+function shouldShowDigitalChannel(chName) {
+    if (!hideStaticDigital || !currentWaveform || !currentWaveform.digital) return true;
+    const values = currentWaveform.digital[chName];
+    return digitalChannelHasTransition(values);
+}
+
+function refreshDigitalListFilter() {
+    const list = document.getElementById("digitalChannelList");
+    if (!list || !currentWaveform || !currentWaveform.digital) return;
+
+    const searchInput = document.getElementById("channelSearch");
+    const keyword = searchInput ? searchInput.value.trim().toLowerCase() : "";
+
+    list.querySelectorAll("label").forEach((label) => {
+        const cb = label.querySelector("input[type=checkbox]");
+        if (!cb) return;
+        const name = cb.value;
+        const values = currentWaveform.digital[name];
+        const isStatic = values && !digitalChannelHasTransition(values);
+
+        if (hideStaticDigital && isStatic) {
+            label.style.display = "none";
+            cb.checked = false;
+            selectedChannels = selectedChannels.filter((c) => c !== name);
+            return;
+        }
+
+        const text = label.textContent.toLowerCase();
+        label.style.display = !keyword || text.includes(keyword) ? "flex" : "none";
+    });
+}
+
+function setHideStaticDigital(next) {
+    hideStaticDigital = Boolean(next);
+    const btn = document.getElementById("btnHideStaticDigital");
+    if (btn) btn.classList.toggle("active", hideStaticDigital);
+    refreshDigitalListFilter();
+    renderPlots();
+    setStatus(hideStaticDigital ? "已隐藏无变位开关量" : "显示全部开关量");
+}
+
+function downloadDataUrl(filename, dataUrl) {
+    const a = document.createElement("a");
+    a.href = dataUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+}
+
+async function exportPng() {
+    if (!allDivs.length) {
+        alert("请先上传并显示波形");
+        return;
+    }
+    const btn = document.getElementById("btnExportPng");
+    if (btn) btn.disabled = true;
+    setStatus("正在生成 PNG…");
+
+    try {
+        const snapshots = [];
+        for (let i = 0; i < allDivs.length; i++) {
+            const div = allDivs[i];
+            const w = Math.max(320, div.offsetWidth || 600);
+            const h = Math.max(100, div.offsetHeight || 180);
+            const scale = 2;
+            const dataUrl = await Plotly.toImage(div, {
+                format: "png",
+                width: w * scale,
+                height: h * scale,
+            });
+            const chName =
+                (div.data && div.data[0] && div.data[0].name) ||
+                (div.data && div.data.length > 1 ? "overlay" : `plot_${i + 1}`);
+            snapshots.push({ dataUrl, width: w * scale, height: h * scale, name: chName });
+        }
+
+        const ts = new Date();
+        const stamp = `${ts.getFullYear()}${String(ts.getMonth() + 1).padStart(2, "0")}${String(ts.getDate()).padStart(2, "0")}_${String(ts.getHours()).padStart(2, "0")}${String(ts.getMinutes()).padStart(2, "0")}`;
+
+        if (snapshots.length === 1) {
+            downloadDataUrl(`comtrade_waveform_${stamp}.png`, snapshots[0].dataUrl);
+            setStatus("PNG 已导出");
+            return;
+        }
+
+        const maxW = Math.max(...snapshots.map((s) => s.width));
+        const totalH = snapshots.reduce((sum, s) => sum + s.height, 0);
+        const canvas = document.createElement("canvas");
+        canvas.width = maxW;
+        canvas.height = totalH;
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, maxW, totalH);
+
+        let y = 0;
+        for (const snap of snapshots) {
+            const img = await new Promise((resolve, reject) => {
+                const el = new Image();
+                el.onload = () => resolve(el);
+                el.onerror = reject;
+                el.src = snap.dataUrl;
+            });
+            ctx.drawImage(img, 0, y, snap.width, snap.height);
+            y += snap.height;
+        }
+
+        const mergedUrl = canvas.toDataURL("image/png");
+        downloadDataUrl(`comtrade_waveform_${stamp}.png`, mergedUrl);
+        setStatus(`PNG 已导出（${snapshots.length} 个子图合并）`);
+    } catch (e) {
+        console.error(e);
+        alert("PNG 导出失败：" + (e.message || e));
+        setStatus("PNG 导出失败");
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+function exportCsv() {
+    if (!currentWaveform || !currentWaveform.time) {
+        alert("请先上传并解析 COMTRADE 文件");
+        return;
+    }
+    const time = currentWaveform.time;
+    const analogKeys = Object.keys(currentWaveform.analog || {});
+    const digitalKeys = Object.keys(currentWaveform.digital || {});
+
+    const analogSelected = selectedChannels.filter((c) => analogKeys.includes(c));
+    const digitalSelected = selectedChannels.filter((c) => digitalKeys.includes(c));
+    const selected = [...analogSelected, ...digitalSelected];
+
+    if (!selected.length) {
+        alert("请先在左侧勾选需要导出的通道");
+        return;
+    }
+
+    const esc = (s) => {
+        const str = String(s ?? "");
+        if (/[\",\n]/.test(str)) return `\"${str.replace(/\"/g, '\"\"')}\"`;
+        return str;
+    };
+
+    const header = ["time_s", ...selected].map(esc).join(",");
+    const lines = [header];
+    for (let i = 0; i < time.length; i++) {
+        const row = [time[i]];
+        for (const ch of selected) {
+            const arr =
+                (currentWaveform.analog && currentWaveform.analog[ch]) ||
+                (currentWaveform.digital && currentWaveform.digital[ch]) ||
+                [];
+            row.push(arr[i]);
+        }
+        lines.push(row.map(esc).join(","));
+    }
+
+    const blob = new Blob(["\ufeff" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const ts = new Date();
+    const yyyy = ts.getFullYear();
+    const mm = String(ts.getMonth() + 1).padStart(2, "0");
+    const dd = String(ts.getDate()).padStart(2, "0");
+    a.href = url;
+    a.download = `comtrade_export_${yyyy}${mm}${dd}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+}
+
+function setOverlayMode(next) {
+    overlayMode = Boolean(next);
+    const btn = document.getElementById("btnToggleOverlay");
+    if (btn) btn.classList.toggle("active", overlayMode);
+    renderPlots();
+}
+
+function setTriggerMarkerVisible(next) {
+    showTriggerMarker = Boolean(next);
+    const btn = document.getElementById("btnToggleTrigger");
+    if (btn) btn.classList.toggle("active", showTriggerMarker);
+    // 只刷新标注层，不 renderPlots()，避免清掉双光标且改变缩放范围
+    refreshPlotOverlays();
+}
+
 
 // ===================== 缩放控制 =====================
+function hideTimeNavigator() {
+    const bar = document.getElementById("timeNavBar");
+    if (bar) bar.classList.add("hidden");
+}
+
+function updateTimeNavigator() {
+    const bar = document.getElementById("timeNavBar");
+    const slider = document.getElementById("timeNavSlider");
+    const hint = document.getElementById("timeNavHint");
+    if (!bar || !slider || !originalXRange || !allDivs.length) {
+        hideTimeNavigator();
+        return;
+    }
+
+    const curr = getCurrentVisibleXRange();
+    if (!curr) {
+        hideTimeNavigator();
+        return;
+    }
+
+    const fullW = originalXRange[1] - originalXRange[0];
+    const winW = curr[1] - curr[0];
+    if (fullW <= 0 || winW <= 0) {
+        hideTimeNavigator();
+        return;
+    }
+
+    // 全时段显示时不显示滑块
+    if (winW >= fullW * 0.999) {
+        hideTimeNavigator();
+        return;
+    }
+
+    bar.classList.remove("hidden");
+    const minStart = originalXRange[0];
+    const maxStart = originalXRange[1] - winW;
+    slider.min = String(minStart);
+    slider.max = String(maxStart);
+    slider.step = String(Math.max(winW / 300, fullW / 10000, 1e-9));
+
+    suppressTimeNavEvent = true;
+    slider.value = String(Math.max(minStart, Math.min(curr[0], maxStart)));
+    suppressTimeNavEvent = false;
+
+    if (hint) {
+        hint.textContent = `${curr[0].toFixed(4)}s ~ ${curr[1].toFixed(4)}s（全长 ${fullW.toFixed(4)}s）`;
+    }
+}
+
+function panToTimeStart(start) {
+    const curr = lastSyncedXRange || getCurrentVisibleXRange();
+    if (!curr || !originalXRange || !allDivs.length) return;
+
+    const winW = curr[1] - curr[0];
+    const minStart = originalXRange[0];
+    const maxStart = originalXRange[1] - winW;
+    const s = Math.max(minStart, Math.min(Number(start), maxStart));
+    const newRange = [s, s + winW];
+
+    updateTimeNavigatorHint(newRange);
+    applyXRangeToAllPlots(newRange);
+}
+
+function onTimeNavInput(e) {
+    if (suppressTimeNavEvent) return;
+    panToTimeStart(e.target.value);
+}
+
 function resetZoom() {
     if (!allDivs.length) return;
-    isSyncing = true;
-    allDivs.forEach(div => {
+    suppressPlotRelayoutSync++;
+    const range = originalXRange ? originalXRange.slice() : null;
+    const tasks = allDivs.map((div) => {
         const trace = div.data && div.data[0];
-        const isDig = trace && trace.line && trace.line.shape === 'hv';
-        const update = { 'xaxis.autorange': true };
-        if (!isDig) update['yaxis.autorange'] = true;
-        else update['yaxis.range'] = [-0.5, 1.5];
-        Plotly.relayout(div, update);
+        const isDig = trace && trace.line && trace.line.shape === "hv";
+        const update = {};
+        if (range) {
+            update["xaxis.range"] = range;
+            update["xaxis.autorange"] = false;
+        } else {
+            update["xaxis.autorange"] = true;
+        }
+        if (!isDig) update["yaxis.autorange"] = true;
+        else update["yaxis.range"] = [-0.5, 1.5];
+        return Plotly.relayout(div, update);
     });
-    isSyncing = false;
+    Promise.all(tasks).then(() => {
+        if (range) lastSyncedXRange = range.slice();
+        else lastSyncedXRange = null;
+        refreshPlotOverlays();
+        updateTimeNavigator();
+        setStatus("已重置为全时段");
+    }).finally(() => {
+        suppressPlotRelayoutSync = Math.max(0, suppressPlotRelayoutSync - 1);
+    });
 }
 
 function zoomIn() {
@@ -429,10 +987,8 @@ function applyZoom(factor) {
         if (newRange[1] > originalXRange[1]) { newRange[1] = originalXRange[1]; newRange[0] = newRange[1] - newWidth; }
     }
 
-    isSyncing = true;
-    Promise.all(allDivs.map(div => Plotly.relayout(div, { 'xaxis.range': newRange }))).then(() => {
-        isSyncing = false;
-    });
+    lastSyncedXRange = newRange.slice();
+    applyXRangeToAllPlots(newRange).then(() => updateTimeNavigator());
 }
 
 
@@ -537,4 +1093,41 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         }, 250);
     });
+
+    // 触发点开关（默认开启）
+    setTriggerMarkerVisible(true);
+    const btnTrigger = document.getElementById("btnToggleTrigger");
+    if (btnTrigger) {
+        btnTrigger.addEventListener("click", () => setTriggerMarkerVisible(!showTriggerMarker));
+    }
+
+    // 叠加模式（默认关闭）
+    setOverlayMode(false);
+    const btnOverlay = document.getElementById("btnToggleOverlay");
+    if (btnOverlay) {
+        btnOverlay.addEventListener("click", () => setOverlayMode(!overlayMode));
+    }
+
+    // PNG / CSV 导出
+    const btnPng = document.getElementById("btnExportPng");
+    if (btnPng) btnPng.addEventListener("click", exportPng);
+
+    const btnCsv = document.getElementById("btnExportCsv");
+    if (btnCsv) btnCsv.addEventListener("click", exportCsv);
+
+    const btnHideStatic = document.getElementById("btnHideStaticDigital");
+    if (btnHideStatic) {
+        btnHideStatic.addEventListener("click", () => setHideStaticDigital(!hideStaticDigital));
+    }
+
+    const timeNavSlider = document.getElementById("timeNavSlider");
+    if (timeNavSlider) {
+        timeNavSlider.addEventListener("input", onTimeNavInput);
+    }
+
+    const btnPan = document.getElementById("btnTogglePan");
+    if (btnPan) {
+        btnPan.addEventListener("click", toggleWavePanMode);
+    }
+    setWaveDragMode("zoom");
 });

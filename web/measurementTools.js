@@ -27,15 +27,93 @@ function toggleDualCursorMode() {
     } else {
         clearDualCursors();
         closeFloatingResults();
-        allDivs.forEach(div => { try { Plotly.relayout(div, { dragmode: 'zoom' }); } catch(e) {} });
+        if (typeof applyWaveDragmodeToAllPlots === "function") {
+            applyWaveDragmodeToAllPlots();
+        } else {
+            allDivs.forEach(div => { try { Plotly.relayout(div, { dragmode: "zoom" }); } catch(e) {} });
+        }
     }
 }
 
 function clearDualCursors() {
-    cursor1 = null; cursor2 = null;
+    cursor1 = null;
+    cursor2 = null;
+    if (typeof refreshPlotOverlays === "function") {
+        refreshPlotOverlays();
+        return;
+    }
     allDivs.forEach(div => {
         if (div && div.layout) Plotly.relayout(div, { shapes: [], annotations: [] });
     });
+}
+
+/** 供 main.js refreshPlotOverlays 合并绘制，避免与触发点互相覆盖 */
+function buildDualCursorOverlaysForDiv(div) {
+    const shapes = [];
+    const annotations = [];
+    if (!cursor1 && !cursor2) return { shapes, annotations };
+    if (!div || !div.data || !div.data.length) return { shapes, annotations };
+
+    const trace = div.data[0];
+    const time = trace.x;
+    const values = trace.y;
+    if (!time || !values) return { shapes, annotations };
+
+    if (cursor1) {
+        const y1 = getYValueAtX(time, values, cursor1.x);
+        shapes.push({
+            type: "line",
+            x0: cursor1.x,
+            x1: cursor1.x,
+            y0: 0,
+            y1: 1,
+            xref: "x",
+            yref: "paper",
+            line: { color: "#e74c3c", width: 1.5 },
+        });
+        annotations.push({
+            x: cursor1.x,
+            y: 1,
+            xref: "x",
+            yref: "y domain",
+            text: `C1 t:${cursor1.x.toFixed(4)}s<br>y:${y1.toFixed(4)}`,
+            showarrow: false,
+            yanchor: "bottom",
+            bgcolor: "rgba(231,76,60,0.85)",
+            bordercolor: "#e74c3c",
+            borderwidth: 1,
+            font: { size: 9, color: "white" },
+            align: "left",
+        });
+    }
+    if (cursor2) {
+        const y2 = getYValueAtX(time, values, cursor2.x);
+        shapes.push({
+            type: "line",
+            x0: cursor2.x,
+            x1: cursor2.x,
+            y0: 0,
+            y1: 1,
+            xref: "x",
+            yref: "paper",
+            line: { color: "#2980b9", width: 1.5 },
+        });
+        annotations.push({
+            x: cursor2.x,
+            y: 1,
+            xref: "x",
+            yref: "y domain",
+            text: `C2 t:${cursor2.x.toFixed(4)}s<br>y:${y2.toFixed(4)}`,
+            showarrow: false,
+            yanchor: "bottom",
+            bgcolor: "rgba(41,128,185,0.85)",
+            bordercolor: "#2980b9",
+            borderwidth: 1,
+            font: { size: 9, color: "white" },
+            align: "left",
+        });
+    }
+    return { shapes, annotations };
 }
 
 function handleDualCursorClick(event, cursorType) {
@@ -61,25 +139,13 @@ function handleDualCursorClick(event, cursorType) {
 }
 
 function drawDualCursors() {
+    if (typeof refreshPlotOverlays === "function") {
+        refreshPlotOverlays();
+        return;
+    }
     allDivs.forEach(div => {
-        if (!div || !div.data || !div.data[0]) return;
-        const trace = div.data[0];
-        const time = trace.x;
-        const values = trace.y;
-        const shapes = [];
-        const annotations = [];
-
-        if (cursor1) {
-            const y1 = getYValueAtX(time, values, cursor1.x);
-            shapes.push({ type: "line", x0: cursor1.x, x1: cursor1.x, y0: 0, y1: 1, xref: "x", yref: "paper", line: { color: "#e74c3c", width: 1.5 } });
-            annotations.push({ x: cursor1.x, y: 1, xref: "x", yref: "y domain", text: `C1 t:${cursor1.x.toFixed(4)}s<br>y:${y1.toFixed(4)}`, showarrow: false, yanchor: "bottom", bgcolor: "rgba(231,76,60,0.85)", bordercolor: "#e74c3c", borderwidth: 1, font: { size: 9, color: "white" }, align: "left" });
-        }
-        if (cursor2) {
-            const y2 = getYValueAtX(time, values, cursor2.x);
-            shapes.push({ type: "line", x0: cursor2.x, x1: cursor2.x, y0: 0, y1: 1, xref: "x", yref: "paper", line: { color: "#2980b9", width: 1.5 } });
-            annotations.push({ x: cursor2.x, y: 1, xref: "x", yref: "y domain", text: `C2 t:${cursor2.x.toFixed(4)}s<br>y:${y2.toFixed(4)}`, showarrow: false, yanchor: "bottom", bgcolor: "rgba(41,128,185,0.85)", bordercolor: "#2980b9", borderwidth: 1, font: { size: 9, color: "white" }, align: "left" });
-        }
-        Plotly.relayout(div, { shapes, annotations });
+        const dual = buildDualCursorOverlaysForDiv(div);
+        Plotly.relayout(div, { shapes: dual.shapes, annotations: dual.annotations });
     });
 }
 

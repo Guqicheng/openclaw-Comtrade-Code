@@ -20,8 +20,19 @@
     <div class="toolbar-center">
       <div class="zoom-controls">
         <button onclick="zoomOut()" title="缩小">−</button>
-        <button onclick="resetZoom()">适应</button>
+        <button onclick="resetZoom()" title="恢复全时段显示">重置</button>
         <button onclick="zoomIn()" title="放大">+</button>
+        <button type="button" id="btnTogglePan" title="平移模式：拖动波形；默认框选放大">平移</button>
+      </div>
+      <div class="toolbar-divider"></div>
+      <div class="view-tools">
+        <button id="btnToggleTrigger" title="显示/隐藏触发点标注">触发点</button>
+        <button id="btnToggleOverlay" title="将多个模拟通道叠加到同一子图">叠加</button>
+      </div>
+      <div class="toolbar-divider"></div>
+      <div class="export-tools">
+        <button id="btnExportPng" title="导出当前波形视图为 PNG">导出 PNG</button>
+        <button id="btnExportCsv" title="导出当前已选通道为 CSV">导出 CSV</button>
       </div>
       <div class="toolbar-divider"></div>
       <div class="page-size-selector">
@@ -83,7 +94,7 @@
         <div class="section-body">
           <input type="text" id="channelSearch" placeholder="搜索通道..." class="search-input">
           <div class="ch-group">
-            <div class="ch-group-header" onclick="togglePanel(this)">
+            <div class="ch-group-header" role="button" tabindex="0" onclick="toggleChGroup(event)" onkeydown="chGroupHeaderKeydown(event)">
               <span>模拟通道</span>
               <span class="badge" id="analogCount">0</span>
               <span class="arrow">▼</span>
@@ -95,15 +106,16 @@
             </div>
             <div class="ch-group-body" id="analogChannelList"></div>
           </div>
-          <div class="ch-group">
-            <div class="ch-group-header" onclick="togglePanel(this)">
+          <div class="ch-group collapsed">
+            <div class="ch-group-header" role="button" tabindex="0" onclick="toggleChGroup(event)" onkeydown="chGroupHeaderKeydown(event)">
               <span>数字通道</span>
               <span class="badge" id="digitalCount">0</span>
               <span class="arrow">▼</span>
             </div>
-            <div class="ch-action-bar">
+            <div class="ch-action-bar ch-action-bar-wrap">
               <button onclick="selectDigitalAll(true)">全选</button>
               <button onclick="selectDigitalAll(false)">清空</button>
+              <button type="button" id="btnHideStaticDigital" title="波形区不显示全程无变位的开关量">隐藏无变位</button>
               <button onclick="applyDigital()" class="btn-primary">应用</button>
             </div>
             <div class="ch-group-body" id="digitalChannelList"></div>
@@ -155,6 +167,11 @@
           <div class="placeholder-sub">支持 COMTRADE 1991 / 1999 / 2013 格式</div>
         </div>
       </div>
+      <div id="timeNavBar" class="time-nav-bar hidden">
+        <span class="time-nav-label">时间轴</span>
+        <input type="range" id="timeNavSlider" min="0" max="1" step="0.001" value="0" title="拖动浏览放大后的整段录波" />
+        <span id="timeNavHint" class="time-nav-hint"></span>
+      </div>
     </div>
 
   </div>
@@ -198,9 +215,29 @@
 <script src="measurementTools.js"></script>
 
 <script>
+  /** 模拟通道 / 数字通道：只收起本分组（列表 + 全选/应用栏） */
+  function toggleChGroup(e) {
+    if (e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+    const header = e ? e.currentTarget : null;
+    if (!header) return;
+    const group = header.closest(".ch-group");
+    if (group) group.classList.toggle("collapsed");
+  }
+
+  function chGroupHeaderKeydown(e) {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      toggleChGroup(e);
+    }
+  }
+
   function togglePanel(header) {
-    const section = header.parentElement;
-    section.classList.toggle("collapsed");
+    if (!header || header.classList.contains("ch-group-header")) return;
+    const section = header.closest(".sidebar-section");
+    if (section) section.classList.toggle("collapsed");
   }
 </script>
 
